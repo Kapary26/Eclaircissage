@@ -1,0 +1,2229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Suivi éclaircissage P&N v9</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+  <style>
+    :root {
+      --blue: #007aff;
+      --green: #34c759;
+      --red: #ff3b30;
+      --orange: #f39c12;
+      --yellow: #ffd60a;
+      --purple: #af52de;
+      --bg: #f2f2f7;
+      --card: #ffffff;
+      --text: #1c1c1e;
+      --text-2: #8e8e93;
+      --line: rgba(60, 60, 67, 0.16);
+      --shadow: 0 10px 30px rgba(0,0,0,0.08);
+      --radius: 16px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000000;
+        --card: #1c1c1e;
+        --text: #f2f2f7;
+        --text-2: #8e8e93;
+        --line: rgba(235, 235, 245, 0.18);
+        --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      }
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+    body { padding-bottom: calc(18px + var(--safe-bottom)); }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app { max-width: 980px; margin: 0 auto; min-height: 100vh; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: calc(10px + var(--safe-top)) 14px 10px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+    .title-wrap { min-width: 0; }
+    .app-title { margin: 0; font-size: 22px; letter-spacing: -0.02em; line-height: 1.1; }
+    .subtitle { margin: 4px 0 0; color: var(--text-2); font-size: 13px; }
+    .icon-btn, .back-btn {
+      border: 0;
+      border-radius: 999px;
+      min-width: 42px;
+      height: 42px;
+      padding: 0 14px;
+      background: var(--card);
+      color: var(--blue);
+      box-shadow: none;
+      border: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .content { padding: 14px; }
+    .grid { display: grid; gap: 12px; }
+    .home-grid { grid-template-columns: 1fr; }
+    @media (min-width: 720px) { .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .card.compact { padding: 12px; box-shadow: none; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .wrap { flex-wrap: wrap; }
+    .muted { color: var(--text-2); }
+    .small { font-size: 12px; }
+    .big-number { font-size: 30px; font-weight: 800; letter-spacing: -0.04em; }
+    .section-title { margin: 0 0 10px; font-size: 17px; }
+
+    .btn {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: var(--blue);
+      color: white;
+      font-weight: 750;
+      text-align: center;
+    }
+    .btn.secondary { background: var(--card); color: var(--blue); border: 1px solid var(--line); }
+    .btn.green { background: var(--green); color: white; }
+    .btn.red { background: var(--red); color: white; }
+    .btn.orange { background: var(--orange); color: white; }
+    .btn.inline { width: auto; min-height: 38px; padding: 8px 12px; border-radius: 999px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .searchbar { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    .searchbar input, .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px;
+      outline: none;
+    }
+    .field textarea { min-height: 92px; resize: vertical; }
+    .field label { display: block; margin: 0 0 6px; color: var(--text-2); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .fields { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fields.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+    .chips {
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding: 10px 0 2px;
+      scrollbar-width: none;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .chip.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+    .progress-wrap { margin-top: 10px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+    .progress { height: 9px; border-radius: 999px; background: color-mix(in srgb, var(--text-2) 22%, transparent); overflow: hidden; }
+    .progress > div { height: 100%; background: var(--green); width: 0%; border-radius: 999px; transition: width .2s ease; }
+
+    .var-card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 13px; box-shadow: 0 4px 18px rgba(0,0,0,0.04); }
+    .var-card:active { transform: scale(0.99); }
+    .var-name { font-size: 17px; font-weight: 800; line-height: 1.2; }
+    .denom { color: var(--text-2); font-size: 13px; margin-top: 2px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 12px;
+      font-weight: 750;
+      background: color-mix(in srgb, var(--text-2) 14%, transparent);
+      color: var(--text);
+    }
+    .pill.blue { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
+    .pill.green { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+    .pill.red { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+    .pill.orange { background: color-mix(in srgb, var(--orange) 18%, transparent); color: var(--orange); }
+    .pill.purple { background: color-mix(in srgb, var(--purple) 18%, transparent); color: var(--purple); }
+    .pill.gray { background: color-mix(in srgb, var(--text-2) 18%, transparent); color: var(--text-2); }
+
+    .status-buttons { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+    @media (min-width: 640px) { .status-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    .status-btn { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 14px; padding: 12px 10px; font-weight: 800; min-height: 52px; }
+    .status-btn.active { background: var(--blue); border-color: var(--blue); color: white; }
+
+    .tabs { display: flex; gap: 8px; margin: 10px 0; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-btn { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 8px 12px; font-weight: 800; }
+    .tab-btn.active { background: var(--blue); border-color: var(--blue); color: white; }
+
+    .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; background: var(--card); min-width: 650px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
+    th { color: var(--text-2); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+    tr:last-child td { border-bottom: 0; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(18px + var(--safe-bottom));
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(28,28,30,0.92);
+      color: white;
+      border-radius: 999px;
+      padding: 10px 14px;
+      z-index: 80;
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .hidden { display: none !important; }
+    .empty { padding: 28px 12px; text-align: center; color: var(--text-2); }
+    .danger-zone { border-color: color-mix(in srgb, var(--red) 40%, var(--line)); }
+    .alert-item { border-left: 4px solid var(--orange); padding: 10px; background: color-mix(in srgb, var(--orange) 9%, transparent); border-radius: 12px; margin: 8px 0; }
+    .hr { height: 1px; background: var(--line); margin: 14px 0; }
+    .file-input { display:none; }
+  
+
+    /* Version 2 : liste compacte terrain */
+    .compact-list { display: grid; gap: 8px; margin-top: 12px; }
+    .compact-var-row {
+      display: grid;
+      grid-template-columns: 46px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 14px;
+      min-height: 48px;
+      padding: 6px 8px 6px 6px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.035);
+    }
+    .compact-var-row:active { transform: scale(0.985); }
+    .compact-var-row.done { opacity: 0.62; }
+    .se-block {
+      height: 34px;
+      width: 46px;
+      min-width: 46px;
+      border-radius: 7px;
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      font-weight: 950;
+      letter-spacing: -0.04em;
+      padding: 0 3px;
+      white-space: nowrap;
+      border: 1px solid rgba(0,0,0,0.22);
+      overflow: hidden;
+    }
+    .se-nj { background:#ffc000; }
+    .se-pb { background:#bfbfbf; }
+    .se-pj { background:#ffff00; }
+    .se-ns { background:#ff0000; color:#000; }
+    .se-nb { background:#f2c2f2; }
+    .se-pbpl { background:#00b050; }
+    .se-nbpl { background:#00b0f0; }
+    .se-default { background:#e5e5ea; }
+    .compact-main { min-width:0; }
+    .compact-main-name {
+      min-width: 0;
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      font-size: 19px;
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      color: var(--text);
+    }
+    .compact-denomination {
+      margin-top: 2px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.15;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .compact-position {
+      white-space: nowrap;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--text);
+    }
+    .list-action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 62px;
+      height: 48px;
+      border-radius: 15px;
+      border: none;
+      font-size: 11px;
+      font-weight: 800;
+      color: #fff;
+      gap: 2px;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .list-action-btn .icon { font-size: 18px; line-height: 1; }
+    .list-action-btn.stats { background: var(--blue); }
+    .list-action-btn.menu { background: var(--blue); }
+    .compact-check { color: var(--green); font-weight: 900; margin-left: 4px; }
+    .sticky-finish {
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: calc(14px + var(--safe-bottom));
+      z-index: 70;
+      width: calc(100% - 28px);
+      box-shadow: 0 10px 28px rgba(52,199,89,0.35);
+    }
+    .form-spacer-bottom { height: 82px; }
+    .info-mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    @media (min-width: 640px) { .info-mini-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    .info-mini { background: color-mix(in srgb, var(--text-2) 10%, transparent); border-radius: 13px; padding: 11px; }
+    .info-mini-label { color: var(--text-2); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .info-mini-value { color: var(--text); font-size: 15px; font-weight: 850; }
+
+
+    /* ===== v4 - Reprise ergonomie application terrain de référence ===== */
+    body {
+      padding-bottom: calc(120px + var(--safe-bottom));
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+    input, select, textarea { font-size: 16px !important; }
+    .app { max-width: none; width: 100%; }
+    .topbar {
+      top: 0;
+      padding: calc(10px + var(--safe-top)) 15px 10px;
+      background-color: var(--bg);
+      border-bottom: 1px solid var(--line);
+      border-radius: 0 0 18px 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.035);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .topbar-row { gap: 8px; }
+    .topbar .title-wrap { text-align: center; flex: 1; }
+    .app-title { font-size: 21px; font-weight: 850; letter-spacing: -0.5px; line-height: 1.1; }
+    .subtitle { font-size: 12px; font-weight: 750; margin-top: 3px; }
+    .content { padding: 15px; animation: fadeIn 0.28s ease-out forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .list-action-btn, .action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 62px;
+      height: 48px;
+      min-height: 48px;
+      border-radius: 15px;
+      border: none;
+      font-size: 11px;
+      font-weight: 800;
+      color: white;
+      cursor: pointer;
+      gap: 2px;
+      padding: 4px;
+      flex-shrink: 0;
+      transition: transform .18s ease, filter .18s ease;
+    }
+    .list-action-btn:active, .action-btn:active, .btn:active, .chip:active, .compact-card:active { transform: scale(0.98); }
+    .list-action-btn .icon, .action-btn .icon { font-size: 18px; line-height: 1; }
+    .list-action-btn.stats, .action-btn.stats { background: var(--blue); }
+    .list-action-btn.menu, .action-btn.menu { background: var(--blue); }
+    .back-btn, .icon-btn {
+      width: 62px;
+      height: 48px;
+      min-height: 48px;
+      border-radius: 15px;
+      border: none;
+      background: var(--blue);
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .back-btn::before { content: '⬅'; font-size: 18px; line-height: 1; }
+    .icon-btn::before { content: '☰'; font-size: 18px; line-height: 1; }
+    .searchbar { margin-top: 0; }
+    .searchbar input {
+      min-height: 44px;
+      padding: 11px 14px;
+      border-radius: 15px;
+      background: var(--card);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      border: 2px solid transparent;
+      transition: border-color .2s ease, background-color .2s ease;
+    }
+    .searchbar input:focus { border-color: var(--blue); }
+    .chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 7px 2px;
+      margin-top: 8px;
+      align-items: center;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip {
+      flex: 0 0 auto;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.03);
+    }
+    .chip.active { background: var(--blue); border-color: var(--blue); color: white; }
+    .progress-wrap { margin: 8px 0 6px; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      color: var(--text-2);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .35px;
+    }
+    .progress { height: 7px; background: rgba(142,142,147,.25); border-radius: 999px; overflow: hidden; }
+    .progress > div { height: 100%; border-radius: 999px; background: var(--green); transition: width .35s ease; }
+    .card {
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      border: 0;
+    }
+    .btn {
+      min-height: 50px;
+      border-radius: 14px;
+      font-size: 17px;
+      font-weight: 800;
+      transition: transform .18s ease, filter .18s ease;
+    }
+    .compact-card {
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      transition: transform .18s ease;
+      padding: 10px 10px;
+      gap: 8px;
+    }
+    .se-badge { width: 42px !important; min-width: 42px !important; height: 34px !important; font-size: 19px !important; border-radius: 8px !important; }
+    .compact-main-name { font-size: 18px; line-height: 1.08; }
+    .compact-position { font-size: 15px; }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(90px + var(--safe-bottom));
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(28,28,30,.92);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 999px;
+      font-size: 15px;
+      font-weight: 800;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+      z-index: 2000;
+      box-shadow: 0 10px 26px rgba(0,0,0,.24);
+      max-width: calc(100vw - 40px);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    @media (prefers-color-scheme: dark) {
+      .topbar { box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+      .card, .compact-card { box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+      .chip { background: #1c1c1e; border-color: #38383a; }
+    }
+
+
+    /* ===== v5 - Correction zoom retour stats + verrouillage mobile terrain ===== */
+    html, body {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+      -webkit-text-size-adjust: 100% !important;
+      text-size-adjust: 100% !important;
+    }
+    #app, .app {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+      margin: 0 !important;
+    }
+    .content, .topbar, .card, .compact-list, .compact-var-row {
+      max-width: 100% !important;
+      overflow-x: hidden;
+    }
+    .content { padding-left: 15px !important; padding-right: 15px !important; }
+    .topbar-row { width: 100%; max-width: 100%; }
+    .topbar .title-wrap { min-width: 0; flex: 1 1 auto; }
+
+    /* On neutralise les mises en page desktop : l'app doit rester mobile-first même après retour depuis Stats. */
+    .home-grid, .fields.two, .fields.three, .info-mini-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .list-filter-grid {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      gap: 10px !important;
+      margin-top: 10px !important;
+    }
+
+    /* Les tableaux de stats ne doivent jamais élargir la page. */
+    .table-wrap {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      min-width: 0 !important;
+      width: 100% !important;
+      table-layout: auto;
+    }
+    th, td {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      padding: 9px 8px;
+      font-size: 12px;
+    }
+
+    /* Liste variétés : SE encore plus compact pour laisser respirer le nom. */
+    .compact-var-row {
+      grid-template-columns: 40px minmax(0, 1fr) max-content !important;
+      gap: 7px !important;
+      padding: 6px 8px 6px 6px !important;
+    }
+    .se-block, .se-badge {
+      width: 40px !important;
+      min-width: 40px !important;
+      height: 32px !important;
+      font-size: 16px !important;
+      border-radius: 8px !important;
+      flex-shrink: 0 !important;
+    }
+    .compact-main {
+      min-width: 0 !important;
+      overflow: visible !important;
+    }
+    .compact-main-name {
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      overflow-wrap: anywhere !important;
+      word-break: normal !important;
+      font-size: clamp(15px, 4.4vw, 18px) !important;
+    }
+    .compact-denomination {
+      white-space: normal !important;
+      overflow-wrap: anywhere !important;
+      font-size: 12px !important;
+    }
+    .compact-position {
+      white-space: nowrap !important;
+      font-size: clamp(12px, 3.6vw, 15px) !important;
+    }
+
+    /* Header strictement identique entre vues, sans changement d'échelle apparent. */
+    .topbar {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .list-action-btn, .action-btn, .back-btn, .icon-btn {
+      width: 62px !important;
+      height: 48px !important;
+      min-width: 62px !important;
+      min-height: 48px !important;
+    }
+
+
+
+    /* ===== v7 - Fiche éclaircissage terrain compacte et sécurisée ===== */
+    .form-sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      padding: calc(8px + var(--safe-top)) 14px 10px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      border-radius: 0 0 18px 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.035);
+    }
+    .form-header-grid {
+      display: grid;
+      grid-template-columns: 62px minmax(0, 1fr) 62px;
+      gap: 8px;
+      align-items: center;
+    }
+    .form-title-block { min-width: 0; text-align: center; }
+    .form-title-main { font-size: 18px; font-weight: 900; letter-spacing: -0.04em; line-height: 1.05; overflow-wrap: anywhere; }
+    .form-title-sub { color: var(--text-2); font-size: 12px; font-weight: 800; margin-top: 3px; line-height: 1.15; overflow-wrap: anywhere; }
+    .form-header-pills { display: flex; gap: 6px; overflow-x: auto; padding-top: 8px; scrollbar-width: none; }
+    .form-header-pills::-webkit-scrollbar { display: none; }
+    .form-header-pills .pill { flex: 0 0 auto; }
+    .collapsible { padding: 0; overflow: hidden; }
+    .collapsible > summary { list-style: none; cursor: pointer; padding: 14px; font-size: 17px; font-weight: 900; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .collapsible > summary::-webkit-details-marker { display: none; }
+    .collapsible > summary::after { content: '▾'; color: var(--text-2); font-size: 17px; transition: transform .18s ease; }
+    .collapsible:not([open]) > summary::after { transform: rotate(-90deg); }
+    .collapsible-body { padding: 0 14px 14px; }
+    .read-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .readonly-tile { background: rgba(142,142,147,.12); border-radius: 13px; padding: 10px; min-width: 0; }
+    .readonly-label { color: var(--text-2); font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .readonly-value { color: var(--text); font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
+    .branch-compact { display: grid; grid-template-columns: minmax(82px, 1fr) 72px 72px; gap: 8px; align-items: end; margin: 9px 0; padding: 10px; border-radius: 14px; background: rgba(142,142,147,.10); }
+    .branch-name { font-weight: 900; font-size: 14px; line-height: 1.1; }
+    .branch-mini-field label { display: block; color: var(--text-2); font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; text-align: center; }
+    .branch-mini-field input { width: 100%; min-height: 42px; text-align: center; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 12px; padding: 8px 6px; font-weight: 850; }
+    .check-row { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 14px; background: rgba(142,142,147,.10); font-weight: 850; margin-bottom: 10px; }
+    .check-row input { width: 22px; height: 22px; accent-color: var(--blue); flex-shrink: 0; }
+    .finish-help { position: fixed; left: 14px; right: 14px; bottom: calc(72px + var(--safe-bottom)); z-index: 69; text-align: center; color: var(--text-2); font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--bg) 86%, transparent); border-radius: 999px; padding: 7px 10px; pointer-events: none; }
+    .sticky-finish:disabled { background: var(--text-2) !important; box-shadow: none !important; opacity: .72; }
+    .compact-var-row.done { opacity: 1; border-left: 5px solid var(--green); }
+    @media (prefers-color-scheme: dark) { .form-sticky-header { box-shadow: 0 8px 20px rgba(0,0,0,.45); } }
+
+
+    /* ===== v8 - Corrections terrain : fiche figée, tri verger, menu référence ===== */
+    .menu-screen {
+      min-height: 100vh;
+      padding: calc(20px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+      background: var(--bg);
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    .menu-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      background: rgba(0,0,0,0.38);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: calc(14px + var(--safe-top)) 14px calc(14px + var(--safe-bottom));
+      overflow-y: auto;
+      animation: overlayFadeIn 0.18s ease-out forwards;
+      -webkit-overflow-scrolling: touch;
+    }
+    .menu-overlay .menu-panel {
+      animation: menuSlideIn 0.22s ease-out forwards;
+    }
+    .menu-panel {
+      width: 100%;
+      max-width: 430px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 24px;
+      box-shadow: 0 12px 34px rgba(0,0,0,0.10);
+      padding: 20px;
+    }
+    @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes menuSlideIn { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .menu-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .menu-title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--text);
+    }
+    .menu-close-btn {
+      width: 54px;
+      height: 54px;
+      border-radius: 999px;
+      border: 0;
+      background: var(--red);
+      color: #fff;
+      font-size: 25px;
+      font-weight: 950;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px rgba(255,59,48,0.24);
+    }
+    .menu-card {
+      background: color-mix(in srgb, var(--card) 94%, var(--bg));
+      border-radius: 20px;
+      padding: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.035);
+      border: 1px solid rgba(142,142,147,0.10);
+    }
+    .menu-card-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 19px;
+      font-weight: 900;
+      color: var(--text);
+    }
+    .menu-button-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .menu-action {
+      min-height: 52px;
+      border: 0;
+      border-radius: 14px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 12px;
+    }
+    .menu-action.orange { background: #ff9500; }
+    .menu-action.blue { background: var(--blue); }
+    .menu-action.green { background: var(--green); }
+    .menu-action:disabled { opacity: .58; cursor: not-allowed; }
+    .menu-meta-line {
+      margin: 12px 0 0;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .menu-reset-link {
+      display: block;
+      margin-top: 18px;
+      text-align: center;
+      color: var(--red);
+      text-decoration: underline;
+      font-size: 14px;
+      font-weight: 650;
+      background: transparent;
+      border: 0;
+      width: 100%;
+      padding: 8px;
+    }
+    .form-sticky-header {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 120 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+    }
+    .form-content {
+      padding-top: calc(92px + var(--safe-top)) !important;
+    }
+    .form-title-sub.only-location {
+      font-size: 12px;
+      font-weight: 850;
+      color: var(--text-2);
+      line-height: 1.15;
+      margin-top: 4px;
+    }
+    .charge-advice-box {
+      margin-top: 12px;
+      border-radius: 14px;
+      padding: 12px;
+      background: color-mix(in srgb, var(--green) 13%, transparent);
+      border: 1px solid color-mix(in srgb, var(--green) 28%, transparent);
+      color: var(--green);
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .charge-advice-box span:first-child {
+      color: var(--text-2);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      font-weight: 900;
+    }
+    .compact-main-name {
+      font-weight: 650 !important;
+      letter-spacing: -0.025em !important;
+    }
+    .compact-denomination {
+      font-weight: 550 !important;
+    }
+    .compact-position {
+      font-weight: 650 !important;
+      letter-spacing: -0.02em !important;
+    }
+    .se-block, .se-badge {
+      font-weight: 850 !important;
+    }
+    @media (prefers-color-scheme: dark) {
+      .menu-panel { box-shadow: 0 12px 34px rgba(0,0,0,0.48); }
+      .menu-card { background: #1c1c1e; border-color: var(--line); }
+    }
+
+  
+
+    /* ===== v9 - Menu en surimpression + gestion des parcelles ===== */
+    .parcel-manager-grid { display: grid; gap: 12px; }
+    .parcel-manager-actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+    .parcel-list { display: grid; gap: 8px; margin-top: 12px; }
+    .parcel-row {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--card) 94%, var(--bg));
+      border: 1px solid var(--line);
+    }
+    .parcel-row .compact-main-name { font-weight: 650; }
+    .parcel-row-meta { color: var(--text-2); font-size: 12px; font-weight: 700; margin-top: 3px; }
+    .parcel-small-btn {
+      border: 0;
+      border-radius: 12px;
+      min-height: 38px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 850;
+      color: #fff;
+      background: var(--blue);
+      white-space: nowrap;
+    }
+    .parcel-small-btn.remove { background: var(--red); }
+    .parcel-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .parcel-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: color-mix(in srgb, var(--blue) 12%, var(--card));
+      color: var(--blue);
+      border: 1px solid color-mix(in srgb, var(--blue) 25%, transparent);
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .parcel-chip button {
+      border: 0;
+      color: var(--red);
+      background: transparent;
+      padding: 0;
+      font-weight: 950;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+</style>
+</head>
+<body>
+  <div id="app" class="app"></div>
+  <div id="toast" class="toast"></div>
+
+<script>
+/*
+  Suivi éclaircissage P&N
+  Application HTML autonome mobile-first pour importer, suivre, calculer et exporter
+  les observations d'éclaircissage en verger de collection.
+*/
+
+const APP_KEY = 'suivi-eclaircissage-pn-v1';
+const EXPORT_DATE_KEY = 'suivi-eclaircissage-pn-last-export';
+const AVG_MINUTES_PER_VARIETY = 5;
+const WORKLOAD_THRESHOLDS_HOURS = { low: 4, medium: 8, high: 14 };
+
+const MAIN_SHEETS = ['P1P2', 'AO P9C', 'IRTA'];
+const REFERENCE_SHEETS = ['CSV', 'Hybrides', 'Feuil2'];
+
+const STATUS = [
+  'à observer',
+  'observation réalisée',
+  'prête à éclaircir',
+  'éclaircissage réalisé',
+  'contrôle final réalisé',
+  'à vérifier'
+];
+
+const MATURITY_CLASSES = [
+  { id: 1, label: 'Très précoces', source: 'Muy precoces', period: 'mai', min: 91, max: 151, caliber: 'B', weight: 130, production: 25, roundLoad: 30, flatLoad: 45 },
+  { id: 2, label: 'Précoces / semi-précoces', source: 'Precoces / semi-precoces', period: 'juin', min: 152, max: 181, caliber: 'B-A / A-B', weight: 165, production: 40, roundLoad: 35, flatLoad: 55 },
+  { id: 3, label: 'Pleine saison', source: 'Plena temporada', period: 'juillet-août', min: 182, max: 243, caliber: 'A-2A', weight: 190, production: 47.5, roundLoad: 40, flatLoad: 65 },
+  { id: 4, label: 'Tardives à très tardives', source: 'Tardías a muy tardías', period: 'septembre-octobre', min: 244, max: 305, caliber: '2A-A', weight: 195, production: 55, roundLoad: 45, flatLoad: 70 }
+];
+
+const COLUMN_ALIASES = {
+  parcel: ['parcelle', 'bloc', 'groupe', 'feuille'],
+  se: ['se', 'code', 'type'],
+  variety: ['variete', 'variété', 'cultivar', 'reference', 'référence'],
+  denomination: ['denomination', 'dénomination', 'nom commercial'],
+  clone: ['clone'],
+  row: ['rang', 'row'],
+  treeStart: ['arbre de debut', 'arbre début', 'debut', 'début', 'start tree'],
+  treeEnd: ['arbre de fin', 'fin', 'end tree', 'arbre fin'],
+  treeCount: ['nb arbres', 'nombre arbres', 'nombre d arbres', 'nb arbre'],
+  maturityDate: ['mat', 'maturite', 'maturité', 'date maturite', 'date maturité', 'date recolte', 'date récolte'],
+  thinningDate: ['mat -45j', 'maturite eclaircissage', 'maturité éclaircissage', 'date eclaircissage', 'date éclaircissage', 'date intervention'],
+  week: ['semaine', 'semaine eclaircissage', 'semaine éclaircissage'],
+  manualDate: ['a faire le', 'à faire le', 'date prevue', 'date prévue', 'date manuelle'],
+  completionDate: ['realise le', 'réalisé le', 'date realisation', 'date réalisation'],
+  load: ['charge', 'charge recommandee', 'charge recommandée', 'fruits a laisser', 'fruits à laisser'],
+  intensity: ['intensite', 'intensité', 'taux', 'taux eclaircissage', 'taux éclaircissage'],
+  comment: ['notes', 'commentaires', 'commentaire', 'divers'],
+  typeFruit: ['type fruit', 'type de fruit', 'physiologie', 'plat', 'plate'],
+  dayOfYear: ['jour', 'jour annee', 'jour année', 'jour de l annee', 'jour de l année']
+};
+
+let state = {
+  records: [],
+  currentView: 'list',
+  selectedId: null,
+  currentFilter: 'Toutes',
+  search: '',
+  selectedParcel: '',
+  selectedWeek: '',
+  customParcels: [],
+  parcelManagerSelected: '',
+  parcelManagerSearch: '',
+  lastSavedAt: null,
+  lastExportAt: null,
+  storageMode: 'localStorage'
+};
+
+const app = document.getElementById('app');
+
+/** Force le rendu mobile sans casser les événements après navigation entre vues. */
+function lockViewportMobile() {
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+  }
+  document.documentElement.style.zoom = '';
+  document.body.style.zoom = '';
+  document.documentElement.style.width = '100%';
+  document.body.style.width = '100%';
+  document.documentElement.style.overflowX = 'hidden';
+  document.body.style.overflowX = 'hidden';
+}
+
+const toastEl = document.getElementById('toast');
+
+/** Initialise l'application, charge les données locales et affiche l'accueil. */
+document.addEventListener('DOMContentLoaded', initApp);
+async function initApp() {
+  if (window.localforage) {
+    localforage.config({ name: 'Suivi éclaircissage P&N' });
+    state.storageMode = 'localForage';
+  }
+  await loadLocalData();
+  renderList();
+}
+
+/** Normalise un classeur importé en liste d'enregistrements métier. */
+function normalizeImportedWorkbook(workbook) {
+  const references = buildReferenceIndex(workbook);
+  const records = [];
+  workbook.SheetNames.forEach(sheetName => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return;
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+    if (!rows.length) return;
+    const headerIndex = detectHeaderRow(rows);
+    if (headerIndex < 0) return;
+    const header = rows[headerIndex].map(normalizeColumnName);
+    const fieldMap = createFieldMap(header);
+    const isMain = MAIN_SHEETS.includes(sheetName) || !REFERENCE_SHEETS.includes(sheetName);
+    if (!isMain && !MAIN_SHEETS.includes(sheetName)) return;
+
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every(cell => isBlankOrExcelError(cell))) continue;
+      const record = rowToRecord(row, header, fieldMap, sheetName, references);
+      if (!record.variety && !record.se && !record.maturityDate && !record.row) continue;
+      records.push(record);
+    }
+  });
+  return records.map(recalculateRecord);
+}
+
+/** Détecte automatiquement la ligne d'en-tête à partir de mots-clés attendus. */
+function detectHeaderRow(rows) {
+  let bestIndex = -1;
+  let bestScore = 0;
+  rows.slice(0, 30).forEach((row, idx) => {
+    const normalized = row.map(normalizeColumnName);
+    let score = 0;
+    Object.values(COLUMN_ALIASES).flat().forEach(alias => {
+      if (normalized.includes(normalizeColumnName(alias))) score++;
+    });
+    if (normalized.some(v => ['variete', 'variété'].includes(v))) score += 4;
+    if (normalized.some(v => ['rang', 'row'].includes(v))) score += 2;
+    if (normalized.some(v => ['mat', 'maturite', 'maturité'].includes(v))) score += 2;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = idx;
+    }
+  });
+  return bestScore >= 3 ? bestIndex : -1;
+}
+
+/** Nettoie un nom de colonne pour faciliter les correspondances. */
+function normalizeColumnName(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’']/g, ' ')
+    .replace(/[^a-z0-9\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Convertit une date Excel numérique en date ISO YYYY-MM-DD. */
+function excelSerialToDate(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  const utc = Date.UTC(1899, 11, 30) + n * 86400000;
+  return toISODate(new Date(utc));
+}
+
+/** Normalise tout format de date courant vers YYYY-MM-DD. */
+function normalizeDate(value) {
+  if (isBlankOrExcelError(value)) return '';
+  if (value instanceof Date && !isNaN(value)) return toISODate(value);
+  if (typeof value === 'number') return excelSerialToDate(value);
+  const raw = String(value).trim();
+  if (!raw || isBlankOrExcelError(raw)) return '';
+  if (/^\d+(\.\d+)?$/.test(raw) && Number(raw) > 20000) return excelSerialToDate(Number(raw));
+
+  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return formatYMD(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  const fr = raw.match(/^(\d{1,2})[\-/\.](\d{1,2})[\-/\.](\d{2,4})$/);
+  if (fr) {
+    let year = Number(fr[3]);
+    if (year < 100) year += 2000;
+    return formatYMD(year, Number(fr[2]), Number(fr[1]));
+  }
+
+  const d = new Date(raw);
+  if (!isNaN(d)) return toISODate(d);
+  return '';
+}
+
+/** Détermine si une variété est plate à partir du type, du code SE ou du nom. */
+function isFlat(record) {
+  const haystack = [record.typeFruit, record.se, record.variety, record.denomination, record.physiology]
+    .filter(Boolean).join(' ').toLowerCase();
+  return /\b(plat|plate|peche plate|pêche plate|nectarine plate)\b/.test(haystack) || /\b[A-Z0-9]*(PBPL|NBPL|PJPL|PL)\b/i.test(haystack) || /pl\b/i.test(String(record.variety || ''));
+}
+
+/** Calcule le jour de l'année d'une date de maturité. */
+function getDayOfYear(maturityDate) {
+  const d = parseISODate(maturityDate);
+  if (!d) return '';
+  const start = Date.UTC(d.getUTCFullYear(), 0, 0);
+  return Math.floor((d.getTime() - start) / 86400000);
+}
+
+/** Calcule la date brute d'éclaircissage : -25 jours pour plates, -45 jours pour rondes. */
+function calculateRawThinningDate(maturityDate, flat) {
+  const d = parseISODate(maturityDate);
+  if (!d) return '';
+  d.setUTCDate(d.getUTCDate() - (flat ? 25 : 45));
+  return toISODate(d);
+}
+
+/** Corrige une date tombant le week-end : samedi vers vendredi, dimanche vers lundi. */
+function adjustWeekend(date) {
+  const d = parseISODate(date);
+  if (!d) return '';
+  const day = d.getUTCDay();
+  if (day === 6) d.setUTCDate(d.getUTCDate() - 1);
+  if (day === 0) d.setUTCDate(d.getUTCDate() + 1);
+  return toISODate(d);
+}
+
+/** Reproduit Excel WEEKNUM(date, 2), semaine commençant le lundi. */
+function getExcelWeekNumberMonday(date) {
+  const d = parseISODate(date);
+  if (!d) return '';
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const dayOfYear = Math.floor((d - yearStart) / 86400000) + 1;
+  const jan1Day = yearStart.getUTCDay() || 7;
+  return Math.ceil((dayOfYear + jan1Day - 1) / 7);
+}
+
+/** Retourne la classe de maturité selon le jour de l'année. */
+function getMaturityClass(maturityDate) {
+  const day = getDayOfYear(maturityDate);
+  if (!day) return 'Hors intervalle';
+  const cls = MATURITY_CLASSES.find(c => day >= c.min && day <= c.max);
+  return cls ? cls.label : 'Hors intervalle';
+}
+
+/** Retourne la charge recommandée finale selon maturité et type rond/plat. */
+function getRecommendedLoad(maturityDate, flat) {
+  const day = getDayOfYear(maturityDate);
+  if (!day) return '';
+  const cls = MATURITY_CLASSES.find(c => day >= c.min && day <= c.max);
+  if (!cls) return '';
+  return flat ? cls.flatLoad : cls.roundLoad;
+}
+
+/** Calcule les fruits retirés, les taux par rameau et le taux moyen pondéré. */
+function calculateThinningRate(record) {
+  record.branches = record.branches || emptyBranches();
+  if (record.degrouping) {
+    ['small', 'medium', 'large'].forEach(key => {
+      record.branches[key] = record.branches[key] || { before: '', remaining: '', removed: '', rate: '' };
+      record.branches[key].removed = '';
+      record.branches[key].rate = '';
+    });
+    record.totalBefore = '';
+    record.totalRemaining = '';
+    record.totalRemoved = '';
+    record.calculatedRate = '';
+    record.calculatedRateClass = 'Dégroupement';
+    record.hasInvalidCounts = false;
+    return record;
+  }
+
+  const branches = ['small', 'medium', 'large'];
+  let totalBefore = 0;
+  let totalRemaining = 0;
+  let completeCount = 0;
+  let invalid = false;
+  branches.forEach(key => {
+    record.branches[key] = record.branches[key] || { before: '', remaining: '', removed: '', rate: '' };
+    const before = numberOrBlank(record.branches[key].before);
+    const remaining = numberOrBlank(record.branches[key].remaining);
+    if (before !== '' && remaining !== '') {
+      completeCount++;
+      if (remaining > before) invalid = true;
+      const removed = Math.max(0, before - remaining);
+      record.branches[key].removed = removed;
+      record.branches[key].rate = before > 0 ? round1((removed / before) * 100) : '';
+      totalBefore += before;
+      totalRemaining += remaining;
+    } else {
+      record.branches[key].removed = '';
+      record.branches[key].rate = '';
+    }
+  });
+  record.totalBefore = completeCount ? totalBefore : '';
+  record.totalRemaining = completeCount ? totalRemaining : '';
+  record.totalRemoved = completeCount ? Math.max(0, totalBefore - totalRemaining) : '';
+  record.calculatedRate = totalBefore ? round1((record.totalRemoved / totalBefore) * 100) : '';
+  record.calculatedRateClass = completeCount === 3 && record.calculatedRate !== '' ? getThinningClass(record.calculatedRate) : 'calcul incomplet';
+  record.hasInvalidCounts = invalid;
+  return record;
+}
+
+/** Classe un taux d'éclaircissage selon les seuils terrain. */
+function getThinningClass(rate) {
+  if (rate === '' || rate === null || rate === undefined || isNaN(Number(rate))) return 'calcul incomplet';
+  const r = Number(rate);
+  if (r === 0) return 'aucun éclaircissage';
+  if (r > 0 && r < 20) return 'dégroupage';
+  if (r < 23) return '1/5';
+  if (r < 30) return '1/4';
+  if (r < 42) return '1/3';
+  if (r < 58) return '1/2';
+  if (r < 71) return '2/3';
+  if (r < 80) return '3/4';
+  if (r === 80) return '4/5';
+  return '4/5+';
+}
+
+/** Calcule un score et une pastille de priorité selon statut, dates et taux. */
+function calculatePriorityScore(record) {
+  const today = todayISO();
+  const targetDate = record.correctedThinningDate;
+  const daysToThinning = diffDays(today, targetDate);
+  let score = 0;
+  let label = 'Basse';
+
+  if (isDoneRecord(record)) {
+    record.priorityScore = -100;
+    record.priority = 'Terminé';
+    return record;
+  }
+
+  if (record.status === 'contrôle final réalisé') score -= 100;
+  if (record.status === 'éclaircissage réalisé') score -= 40;
+  if (record.status === 'à vérifier') score += 100;
+  if (record.status === 'prête à éclaircir') score += 35;
+  if (record.status === 'à observer') score += 15;
+
+  if (daysToThinning !== null && record.status !== 'contrôle final réalisé') {
+    if (daysToThinning < 0) score += 90;
+    else if (daysToThinning <= 7) score += 60;
+    else if (daysToThinning <= 14) score += 35;
+  }
+
+  if (Number(record.historicalRate) >= 66) score += 35;
+  else if (Number(record.historicalRate) >= 50) score += 20;
+  if (Number(record.calculatedRate) >= 66) score += 20;
+  if (record.comment || record.misc) score += 5;
+  if (record.status === 'à observer' && daysToThinning !== null && daysToThinning <= 7) score += 30;
+
+  if (isDoneRecord(record)) label = 'Terminé';
+  else if (score >= 90) label = 'Urgent';
+  else if (score >= 55) label = 'Haute';
+  else if (score >= 25) label = 'Moyenne';
+  else label = 'Basse';
+
+  record.priorityScore = score;
+  record.priority = label;
+  return record;
+}
+
+/** Trie les variétés selon l'ordre terrain : parcelle, rang croissant, arbre croissant. */
+function sortVarietiesForThinning(records) {
+  return [...records].sort((a, b) =>
+    String(a.parcel || a.group || '').localeCompare(String(b.parcel || b.group || ''), 'fr', { numeric: true, sensitivity: 'base' }) ||
+    terrainNumber(a.row) - terrainNumber(b.row) ||
+    terrainNumber(a.treeStart) - terrainNumber(b.treeStart) ||
+    terrainNumber(a.treeEnd) - terrainNumber(b.treeEnd) ||
+    String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric: true, sensitivity: 'base' })
+  );
+}
+
+/** Calcule la charge de travail hebdomadaire à partir des données importées. */
+function calculateWeeklyWorkload(records) {
+  const map = new Map();
+  records.forEach(r => {
+    const week = r.thinningWeek || 'Sans semaine';
+    if (!map.has(week)) {
+      map.set(week, { week, P1P2: 0, 'AO P9C': 0, IRTA: 0, others: 0, total: 0, done: 0, remaining: 0, hours: 0, level: '' });
+    }
+    const item = map.get(week);
+    if (r.group === 'P1P2') item.P1P2++;
+    else if (r.group === 'AO P9C') item['AO P9C']++;
+    else if (r.group === 'IRTA') item.IRTA++;
+    else item.others++;
+    item.total++;
+    if (isDoneRecord(r)) item.done++;
+    else item.remaining++;
+  });
+  return [...map.values()].map(w => {
+    w.hours = round1(w.total * AVG_MINUTES_PER_VARIETY / 60);
+    if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.low) w.level = 'faible charge';
+    else if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.medium) w.level = 'charge moyenne';
+    else if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.high) w.level = 'forte charge';
+    else w.level = 'surcharge';
+    return w;
+  }).sort((a, b) => num(a.week) - num(b.week));
+}
+
+/** Affiche le menu principal en surimpression, sans quitter la liste ou la fiche active. */
+function renderHome() {
+  lockViewportMobile();
+  document.getElementById('menuOverlay')?.remove();
+
+  if (!app.innerHTML.trim()) renderList();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'menuOverlay';
+  overlay.className = 'menu-overlay';
+  overlay.innerHTML = `
+      <section class="menu-panel" role="dialog" aria-modal="true" aria-label="Menu">
+        <div class="menu-header">
+          <h1 class="menu-title">Menu</h1>
+          <button class="menu-close-btn" onclick="closeMenuOverlay()" aria-label="Fermer le menu">×</button>
+        </div>
+
+        <div class="menu-card">
+          <h2 class="menu-card-title"><span>📦</span><span>Import / Export</span></h2>
+          <input id="fileImport" class="file-input" type="file" accept=".xlsx,.xls,.csv" />
+          <div class="menu-button-grid">
+            <button class="menu-action orange" onclick="document.getElementById('fileImport').click()">📥 Importer</button>
+            <button class="menu-action blue" onclick="exportToExcel()" ${state.records.length ? '' : 'disabled'}>📦 Export Excel</button>
+          </div>
+          <p class="menu-meta-line">📦 Dernier export : ${fmtDateTime(state.lastExportAt) || 'jamais'}</p>
+        </div>
+
+        <div class="menu-card">
+          <h2 class="menu-card-title"><span>⚙️</span><span>Gestion</span></h2>
+          <div class="menu-button-grid">
+            <button class="menu-action blue" onclick="closeMenuOverlay(); renderWorkload()">📋 Charge</button>
+            <button class="menu-action blue" onclick="closeMenuOverlay(); renderParcelManagement()">🌳 Parcelles</button>
+          </div>
+        </div>
+
+        <div class="menu-card">
+          <h2 class="menu-card-title"><span>💾</span><span>Données</span></h2>
+          <p class="menu-meta-line">💾 Dernière sauvegarde locale : ${fmtDateTime(state.lastSavedAt) || 'jamais'}</p>
+          <button class="menu-reset-link" onclick="resetSeason()">⚠️ Nouvelle saison / tout effacer</button>
+        </div>
+      </section>`;
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) closeMenuOverlay();
+  });
+  document.body.appendChild(overlay);
+  document.getElementById('fileImport')?.addEventListener('change', handleFileImport);
+}
+
+function closeMenuOverlay() {
+  document.getElementById('menuOverlay')?.remove();
+}
+
+/** Affiche la liste mobile des variétés avec recherche, filtres et progression. */
+function renderList() {
+  lockViewportMobile();
+  state.currentView = 'list';
+  const stats = getStats();
+  const records = getFilteredRecords();
+  app.innerHTML = listHeader('Variétés', `${records.length} affichée(s) sur ${state.records.length}`) + `
+    <main class="content">
+      <div class="searchbar">
+        <input id="searchInput" type="search" placeholder="Rechercher variété, SE, parcelle, rang…" value="${escapeAttr(state.search)}" />
+      </div>
+      ${progressBlock(stats.progress, stats.done, stats.total)}
+      <div class="chips" id="filterChips">${filterNames().map(f => `<button class="chip ${state.currentFilter === f ? 'active' : ''}" data-filter="${escapeAttr(f)}">${f}</button>`).join('')}</div>
+      ${renderExtraFilters()}
+      <div class="compact-list">
+        ${records.length ? records.map(renderRecordCard).join('') : '<div class="empty">Aucune variété ne correspond aux filtres.</div>'}
+      </div>
+    </main>`;
+
+  document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; renderList(); });
+  document.querySelectorAll('[data-filter]').forEach(btn => btn.addEventListener('click', e => { state.currentFilter = e.currentTarget.dataset.filter; renderList(); }));
+  const parcelSelect = document.getElementById('parcelSelect');
+  if (parcelSelect) parcelSelect.addEventListener('change', e => { state.selectedParcel = e.target.value; renderList(); });
+  const weekSelect = document.getElementById('weekSelect');
+  if (weekSelect) weekSelect.addEventListener('change', e => { state.selectedWeek = e.target.value; renderList(); });
+}
+
+/** Affiche la fiche détaillée et le formulaire d'éclaircissage d'une variété. */
+function renderForm(id) {
+  const record = state.records.find(r => r.id === id) || state.records.find(r => r.id === state.selectedId);
+  if (!record) return renderList();
+  recalculateRecord(record);
+  state.selectedId = record.id;
+  state.currentView = 'form';
+
+  const done = isDoneRecord(record);
+  const canFinish = canFinishThinning(record);
+  const finishMsg = getFinishValidationMessage(record);
+  const daysThinning = diffDays(todayISO(), record.correctedThinningDate);
+  const daysMaturity = diffDays(todayISO(), record.maturityDate);
+  const showRateBlock = !!record.completionDate;
+
+  app.innerHTML = formHeader(record, done) + `
+    <main class="content grid form-content">
+      <details class="card collapsible" open>
+        <summary>📌 Informations éclaircissage</summary>
+        <div class="collapsible-body">
+          <div class="read-grid">
+            ${readTile('Parcelle', record.parcel || '—')}
+            ${readTile('Nb arbres', record.treeCount || '—')}
+            ${readTile('Maturité', displayDate(record.maturityDate))}
+            ${readTile('Créneau', getMaturityClass(record.maturityDate))}
+            ${readTile('Jour année', record.maturityDay || '—')}
+            ${readTile('Éclaircir le', displayDate(record.correctedThinningDate))}
+            ${readTile('Semaine', record.thinningWeek ? 'S' + record.thinningWeek : '—')}
+            ${readTile('Jours avant éclair.', daysThinning === null ? '—' : daysThinning)}
+            ${readTile('Jours avant maturité', daysMaturity === null ? '—' : daysMaturity)}
+            ${readTile('Taux historique', record.historicalRate !== '' ? record.historicalRate + ' %' : '—')}
+            ${readTile('Classe hist.', record.historicalClass || '—')}
+          </div>
+        </div>
+      </details>
+
+      <details class="card collapsible" open>
+        <summary>📅 Réalisation</summary>
+        <div class="collapsible-body">
+          <div class="fields">
+            ${inputField('Date de réalisation', 'completionDate', record.completionDate, 'date')}
+          </div>
+          <div class="charge-advice-box"><span>Charge conseillée</span><strong>${record.recommendedLoad || '—'} fruits/arbre</strong></div>
+          <p class="muted small" style="margin:10px 0 0">Le calcul du taux apparaît uniquement après saisie de cette date.</p>
+        </div>
+      </details>
+
+      ${showRateBlock ? rateSection(record) : ''}
+
+      <details class="card collapsible" open>
+        <summary>💬 Commentaire</summary>
+        <div class="collapsible-body">
+          ${textareaField('Commentaire', 'comment', record.comment || '')}
+        </div>
+      </details>
+      <div class="form-spacer-bottom"></div>
+    </main>
+    ${!canFinish ? `<div class="finish-help">${escapeHtml(finishMsg)}</div>` : ''}
+    <button class="btn green sticky-finish" onclick="finishThinning('${record.id}')" ${canFinish ? '' : 'disabled'}>${done ? 'Éclaircissage fini' : 'Éclaircissage fini'}</button>`;
+
+  document.querySelectorAll('[data-field]').forEach(el => {
+    const eventName = el.type === 'checkbox' ? 'change' : 'change';
+    el.addEventListener(eventName, e => updateRecordField(record.id, e.target.dataset.field, e.target.type === 'checkbox' ? e.target.checked : e.target.value));
+    if (el.type !== 'checkbox') {
+      el.addEventListener('input', debounce(e => updateRecordField(record.id, e.target.dataset.field, e.target.value, false), 250));
+    }
+  });
+}
+
+/** Affiche les statistiques globales et les alertes qualité. */
+function renderStats() {
+  lockViewportMobile();
+  state.currentView = 'stats';
+  const s = getStats();
+  const workload = calculateWeeklyWorkload(state.records);
+  const alerts = getQualityAlerts();
+  const byParcel = groupCount(state.records, r => r.parcel || r.group || 'Sans parcelle');
+  const byClass = groupCount(state.records, r => getMaturityClass(r.maturityDate));
+  const byRateClass = groupCount(state.records.filter(r => r.calculatedRate !== ''), r => r.calculatedRateClass || 'Non calculé');
+  app.innerHTML = layoutHeader('Statistiques', 'Synthèse éclaircissage', true) + `
+    <main class="content grid">
+      <section class="card">
+        <div class="grid home-grid">
+          ${statCard('Total variétés', s.total)}
+          ${statCard('Observées', s.observed)}
+          ${statCard('Prêtes à éclaircir', s.ready)}
+          ${statCard('Réalisées', s.thinned)}
+          ${statCard('Contrôles finaux', s.finalChecks)}
+          ${statCard('À vérifier', s.toCheck)}
+          ${statCard('Prioritaires', s.urgent)}
+          ${statCard('En retard', s.late)}
+          ${statCard('Taux moyen', s.avgRate !== '' ? s.avgRate + ' %' : '—')}
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Répartition des classes de taux</h2>
+        ${miniTable(byRateClass, ['Classe', 'Nombre'])}
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Synthèse par parcelle</h2>
+        ${miniTable(byParcel, ['Parcelle', 'Nombre'])}
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Synthèse par créneau de maturité</h2>
+        ${miniTable(byClass, ['Classe', 'Nombre'])}
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Synthèse par semaine</h2>
+        ${workloadTable(workload)}
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Comparaison taux historique / taux calculé</h2>
+        <p class="muted small">Moyenne historique : ${s.avgHistoricalRate !== '' ? s.avgHistoricalRate + ' %' : '—'} • Moyenne calculée : ${s.avgRate !== '' ? s.avgRate + ' %' : '—'}</p>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Alertes</h2>
+        ${alerts.length ? alerts.map(a => `<div class="alert-item"><strong>${escapeHtml(a.title)}</strong><br><span class="small">${escapeHtml(a.detail)}</span></div>`).join('') : '<p class="muted">Aucune alerte qualité détectée.</p>'}
+      </section>
+    </main>`;
+}
+
+/** Affiche la charge de travail hebdomadaire. */
+function renderWorkload() {
+  state.currentView = 'workload';
+  const workload = calculateWeeklyWorkload(state.records);
+  app.innerHTML = layoutHeader('Charge de travail', `${AVG_MINUTES_PER_VARIETY} min par variété`, true) + `
+    <main class="content grid">
+      <section class="card">
+        <h2 class="section-title">Synthèse hebdomadaire</h2>
+        ${workloadTable(workload)}
+      </section>
+      <section class="card">
+        <h2 class="section-title">Seuils utilisés</h2>
+        <p class="muted small">Faible ≤ ${WORKLOAD_THRESHOLDS_HOURS.low} h • Moyenne ≤ ${WORKLOAD_THRESHOLDS_HOURS.medium} h • Forte ≤ ${WORKLOAD_THRESHOLDS_HOURS.high} h • Au-delà : surcharge.</p>
+      </section>
+    </main>`;
+}
+
+/** Sauvegarde localement les données et les métadonnées. */
+async function saveLocalData(show = false) {
+  state.lastSavedAt = new Date().toISOString();
+  const payload = {
+    records: state.records,
+    lastSavedAt: state.lastSavedAt,
+    lastExportAt: state.lastExportAt,
+    customParcels: state.customParcels
+  };
+  try {
+    if (window.localforage) await localforage.setItem(APP_KEY, payload);
+    else localStorage.setItem(APP_KEY, JSON.stringify(payload));
+    if (show) showToast('Sauvegarde locale effectuée');
+  } catch (err) {
+    localStorage.setItem(APP_KEY, JSON.stringify(payload));
+    state.storageMode = 'localStorage';
+  }
+}
+
+/** Charge les données locales sauvegardées. */
+async function loadLocalData() {
+  try {
+    let payload = null;
+    if (window.localforage) payload = await localforage.getItem(APP_KEY);
+    if (!payload) payload = JSON.parse(localStorage.getItem(APP_KEY) || 'null');
+    if (payload) {
+      state.records = (payload.records || []).map(recalculateRecord);
+      state.lastSavedAt = payload.lastSavedAt || null;
+      state.lastExportAt = payload.lastExportAt || localStorage.getItem(EXPORT_DATE_KEY) || null;
+      state.customParcels = Array.isArray(payload.customParcels) ? payload.customParcels : [];
+    }
+  } catch (err) {
+    console.warn('Chargement local impossible', err);
+  }
+}
+
+/** Exporte les données et la synthèse hebdomadaire dans un fichier Excel. */
+function exportToExcel() {
+  if (!window.XLSX) return showToast('SheetJS non disponible');
+  if (!state.records.length) return showToast('Aucune donnée à exporter');
+  const wb = XLSX.utils.book_new();
+  const dataRows = state.records.map(recordToExportRow);
+  const wsData = XLSX.utils.json_to_sheet(dataRows);
+  XLSX.utils.book_append_sheet(wb, wsData, 'Données éclaircissage');
+  const workloadRows = calculateWeeklyWorkload(state.records).map(w => ({
+    'semaine': w.week,
+    'nombre P1P2': w.P1P2,
+    'nombre AO P9C': w['AO P9C'],
+    'nombre IRTA': w.IRTA,
+    'autres groupes': w.others,
+    'total variétés': w.total,
+    'réalisées': w.done,
+    'restantes': w.remaining,
+    'temps estimé en heures': w.hours,
+    'niveau de charge': w.level
+  }));
+  const wsWorkload = XLSX.utils.json_to_sheet(workloadRows);
+  XLSX.utils.book_append_sheet(wb, wsWorkload, 'Synthèse hebdomadaire');
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Suivi_eclaircissage_PN_${stamp}.xlsx`);
+  state.lastExportAt = new Date().toISOString();
+  localStorage.setItem(EXPORT_DATE_KEY, state.lastExportAt);
+  saveLocalData(false);
+  showToast('Export Excel généré');
+  closeMenuOverlay();
+}
+
+/** Réinitialise la saison après confirmation sécurisée. */
+async function resetSeason() {
+  const first = confirm('Nouvelle saison : toutes les données locales seront supprimées. Continuer ?');
+  if (!first) return;
+  const second = prompt('Tapez SUPPRIMER pour confirmer la réinitialisation complète.');
+  if (second !== 'SUPPRIMER') return showToast('Réinitialisation annulée');
+  state.records = [];
+  state.lastSavedAt = null;
+  state.lastExportAt = null;
+  state.customParcels = [];
+  state.parcelManagerSelected = '';
+  state.parcelManagerSearch = '';
+  try {
+    if (window.localforage) await localforage.removeItem(APP_KEY);
+    localStorage.removeItem(APP_KEY);
+    localStorage.removeItem(EXPORT_DATE_KEY);
+  } catch (err) { console.warn(err); }
+  showToast('Saison réinitialisée');
+  closeMenuOverlay();
+  renderList();
+}
+
+
+function renderParcelManagement() {
+  state.currentView = 'parcels';
+  const parcels = getAllParcels();
+  if (!state.parcelManagerSelected && parcels.length) state.parcelManagerSelected = parcels[0];
+  const selected = state.parcelManagerSelected || '';
+  const q = normalizeKey(state.parcelManagerSearch || '');
+  const filtered = state.records.filter(r => {
+    const hay = normalizeKey([r.se, r.variety, r.denomination, r.parcel, r.row, r.treeStart, r.treeEnd].join(' '));
+    return !q || hay.includes(q);
+  }).sort(sortVarietiesForThinning);
+
+  app.innerHTML = layoutHeader('Parcelles', 'Créer et ranger les variétés', true) + `
+    <main class="content grid">
+      <section class="card">
+        <h2 class="section-title">Créer une parcelle</h2>
+        <div class="parcel-manager-actions">
+          <div class="field"><label>Nom de la parcelle</label><input id="newParcelName" type="text" placeholder="Ex. P3, P9C, IRTA…"></div>
+          <button class="btn secondary" onclick="addCustomParcel()">Ajouter</button>
+        </div>
+        <div class="parcel-chip-row">
+          ${parcels.length ? parcels.map(p => `<span class="parcel-chip">🌳 ${escapeHtml(p)}${state.customParcels.includes(p) ? `<button onclick="removeCustomParcel('${escapeAttr(p)}')" aria-label="Supprimer ${escapeAttr(p)}">×</button>` : ''}</span>`).join('') : '<span class="muted small">Aucune parcelle disponible.</span>'}
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Ajouter des variétés dans une parcelle</h2>
+        <div class="fields">
+          <div class="field"><label>Parcelle cible</label><select id="parcelManagerSelect">${parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selected ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
+          <div class="field"><label>Rechercher une variété</label><input id="parcelManagerSearch" type="search" placeholder="Variété, SE, rang, arbre…" value="${escapeAttr(state.parcelManagerSearch || '')}"></div>
+        </div>
+        <p class="muted small">Le bouton Ajouter déplace la variété dans la parcelle cible. Les données d’éclaircissage restent conservées.</p>
+        <div class="parcel-list">
+          ${filtered.length ? filtered.map(r => parcelRecordRow(r, selected)).join('') : '<div class="empty">Aucune variété trouvée.</div>'}
+        </div>
+      </section>
+    </main>`;
+
+  document.getElementById('parcelManagerSelect')?.addEventListener('change', e => { state.parcelManagerSelected = e.target.value; renderParcelManagement(); });
+  document.getElementById('parcelManagerSearch')?.addEventListener('input', debounce(e => { state.parcelManagerSearch = e.target.value; renderParcelManagement(); }, 250));
+}
+
+function parcelRecordRow(r, selectedParcel) {
+  const inSelected = selectedParcel && String(r.parcel || '') === String(selectedParcel);
+  const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="parcel-row-meta">${escapeHtml(r.denomination)}</div>` : '';
+  return `<div class="parcel-row">
+    <div class="se-block ${seColorClass(r.se)}">${escapeHtml(r.se || '—')}</div>
+    <div>
+      <div class="compact-main-name">${escapeHtml(r.variety || 'Sans variété')}</div>
+      ${denom}
+      <div class="parcel-row-meta">${escapeHtml(r.parcel || 'Sans parcelle')} · ${escapeHtml(formatTreePosition(r))}</div>
+    </div>
+    <button class="parcel-small-btn ${inSelected ? 'remove' : ''}" onclick="assignRecordToParcel('${escapeAttr(r.id)}', '${escapeAttr(inSelected ? '' : selectedParcel)}')">${inSelected ? 'Retirer' : 'Ajouter'}</button>
+  </div>`;
+}
+
+async function addCustomParcel() {
+  const input = document.getElementById('newParcelName');
+  const name = String(input?.value || '').trim();
+  if (!name) return showToast('Nom de parcelle manquant');
+  if (!state.customParcels.includes(name)) state.customParcels.push(name);
+  state.parcelManagerSelected = name;
+  await saveLocalData(false);
+  showToast('Parcelle créée');
+  renderParcelManagement();
+}
+
+async function removeCustomParcel(parcel) {
+  if (!confirm(`Supprimer la parcelle ${parcel} de la liste ? Les variétés déjà associées gardent ce nom de parcelle.`)) return;
+  state.customParcels = state.customParcels.filter(p => p !== parcel);
+  if (state.parcelManagerSelected === parcel) state.parcelManagerSelected = '';
+  await saveLocalData(false);
+  renderParcelManagement();
+}
+
+async function assignRecordToParcel(id, parcel) {
+  if (!parcel && !confirm('Retirer cette variété de la parcelle sélectionnée ?')) return;
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  record.parcel = parcel || '';
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  await saveLocalData(false);
+  showToast(parcel ? 'Variété ajoutée à la parcelle' : 'Variété retirée');
+  renderParcelManagement();
+}
+
+function getAllParcels() {
+  return unique([...(state.customParcels || []), ...state.records.map(r => r.parcel).filter(Boolean)]).sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
+}
+
+function renderManagement() {
+  state.currentView = 'management';
+  app.innerHTML = layoutHeader('Gestion', 'Sauvegarde et nouvelle saison', true) + `
+    <main class="content grid">
+      <section class="card">
+        <h2 class="section-title">Sauvegarde locale</h2>
+        <p class="muted small">Mode de stockage : ${state.storageMode}</p>
+        <p class="muted small">Dernière sauvegarde locale : ${fmtDateTime(state.lastSavedAt) || '—'}</p>
+        <p class="muted small">Dernier export Excel : ${fmtDateTime(state.lastExportAt) || '—'}</p>
+        <button class="btn secondary" onclick="saveLocalData(true)">Forcer la sauvegarde</button>
+      </section>
+      <section class="card danger-zone">
+        <h2 class="section-title">Nouvelle saison</h2>
+        <p class="muted small">Cette action efface la liste importée, les observations, statuts, commentaires, calculs et priorités sauvegardés dans ce navigateur.</p>
+        <button class="btn red" onclick="resetSeason()">Tout effacer</button>
+      </section>
+    </main>`;
+}
+
+async function handleFileImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!window.XLSX) return showToast('SheetJS non disponible');
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: true });
+    const imported = normalizeImportedWorkbook(workbook);
+    if (!imported.length) return showToast('Aucune ligne exploitable détectée');
+    const keep = state.records.length ? confirm('Remplacer les données actuelles par ce fichier importé ? Annuler = fusionner.') : true;
+    if (keep) state.records = imported;
+    else state.records = mergeRecords(state.records, imported);
+    await saveLocalData(false);
+    showToast(`${imported.length} ligne(s) importée(s)`);
+    renderList();
+  } catch (err) {
+    console.error(err);
+    showToast('Erreur pendant l’import');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+function buildReferenceIndex(workbook) {
+  const index = new Map();
+  workbook.SheetNames.forEach(sheetName => {
+    if (!REFERENCE_SHEETS.includes(sheetName)) return;
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: '' });
+    const headerIndex = detectHeaderRow(rows);
+    if (headerIndex < 0) return;
+    const header = rows[headerIndex].map(normalizeColumnName);
+    const fieldMap = createFieldMap(header);
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+      const row = rows[i];
+      const variety = getCell(row, header, fieldMap.variety);
+      const se = getCell(row, header, fieldMap.se);
+      const key = normalizeKey(variety || se);
+      if (!key) continue;
+      index.set(key, {
+        maturityDate: normalizeDate(getCell(row, header, fieldMap.maturityDate)),
+        denomination: cleanCell(getCell(row, header, fieldMap.denomination)),
+        dayOfYear: cleanCell(getCell(row, header, fieldMap.dayOfYear)),
+        load: cleanCell(getCell(row, header, fieldMap.load)),
+        typeFruit: cleanCell(getCell(row, header, fieldMap.typeFruit))
+      });
+    }
+  });
+  return index;
+}
+
+function rowToRecord(row, header, fieldMap, sheetName, references) {
+  const variety = cleanCell(getCell(row, header, fieldMap.variety));
+  const se = cleanCell(getCell(row, header, fieldMap.se));
+  const ref = references.get(normalizeKey(variety)) || references.get(normalizeKey(se)) || {};
+  const record = {
+    id: makeId(sheetName, row, variety, se),
+    group: sheetName,
+    parcel: cleanCell(getCell(row, header, fieldMap.parcel)) || sheetName,
+    se,
+    variety,
+    denomination: cleanCell(getCell(row, header, fieldMap.denomination)) || ref.denomination || '',
+    clone: cleanCell(getCell(row, header, fieldMap.clone)),
+    row: cleanCell(getCell(row, header, fieldMap.row)),
+    treeStart: cleanCell(getCell(row, header, fieldMap.treeStart)),
+    treeEnd: cleanCell(getCell(row, header, fieldMap.treeEnd)),
+    treeCount: cleanCell(getCell(row, header, fieldMap.treeCount)),
+    typeFruit: cleanCell(getCell(row, header, fieldMap.typeFruit)) || ref.typeFruit || '',
+    maturityDate: normalizeDate(getCell(row, header, fieldMap.maturityDate)) || ref.maturityDate || '',
+    importedThinningDate: normalizeDate(getCell(row, header, fieldMap.thinningDate)),
+    manualDate: normalizeDate(getCell(row, header, fieldMap.manualDate)),
+    completionDate: '',
+    observationDate: '',
+    recommendedLoad: '',
+    historicalRate: parseRate(getCell(row, header, fieldMap.intensity)),
+    historicalClass: '',
+    status: 'à observer',
+    finished: false,
+    degrouping: false,
+    comment: cleanCell(getCell(row, header, fieldMap.comment)),
+    misc: '',
+    branches: emptyBranches(),
+    lastModified: new Date().toISOString()
+  };
+  if (!record.treeCount) record.treeCount = calculateTreeCount(record.treeStart, record.treeEnd);
+  return record;
+}
+
+function createFieldMap(header) {
+  const map = {};
+  Object.entries(COLUMN_ALIASES).forEach(([field, aliases]) => {
+    const normalizedAliases = aliases.map(normalizeColumnName);
+    let idx = header.findIndex(h => normalizedAliases.includes(h));
+    if (idx < 0) idx = header.findIndex(h => normalizedAliases.some(a => h.includes(a) || a.includes(h)));
+    map[field] = idx >= 0 ? idx : null;
+  });
+  return map;
+}
+
+function getCell(row, header, idx) {
+  if (idx === null || idx === undefined || idx < 0) return '';
+  return row[idx];
+}
+
+function recalculateRecord(record) {
+  record.branches = record.branches || emptyBranches();
+  record.degrouping = !!record.degrouping;
+  record.finished = !!record.finished || !!record.thinningFinished;
+  if (!record.finished && ['éclaircissage réalisé', 'contrôle final réalisé', 'done', 'fini'].includes(String(record.status || '').toLowerCase())) {
+    record.status = 'à observer';
+    record.completionDate = '';
+  }
+  record.flat = isFlat(record);
+  record.maturityDate = normalizeDate(record.maturityDate);
+  record.maturityDay = getDayOfYear(record.maturityDate);
+  record.rawThinningDate = calculateRawThinningDate(record.maturityDate, record.flat) || record.importedThinningDate || '';
+  record.correctedThinningDate = adjustWeekend(record.rawThinningDate) || record.importedThinningDate || '';
+  record.thinningWeek = getExcelWeekNumberMonday(record.correctedThinningDate) || record.week || '';
+  record.recommendedLoad = getRecommendedLoad(record.maturityDate, record.flat);
+  if (!record.historicalClass && record.historicalRate !== '') record.historicalClass = getThinningClass(record.historicalRate);
+  calculateThinningRate(record);
+  calculatePriorityScore(record);
+  return record;
+}
+
+function finishThinning(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  recalculateRecord(record);
+  const msg = getFinishValidationMessage(record);
+  if (!canFinishThinning(record)) {
+    showToast(msg || 'Saisie incomplète');
+    renderForm(id);
+    return;
+  }
+  record.finished = true;
+  record.thinningFinished = true;
+  record.status = 'éclaircissage réalisé';
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  saveLocalData(false);
+  showToast('Éclaircissage fini');
+  renderList();
+}
+
+function updateRecordField(id, field, value, rerender = true) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  if (field.startsWith('branches.')) {
+    const [, branch, prop] = field.split('.');
+    record.branches = record.branches || emptyBranches();
+    record.branches[branch] = record.branches[branch] || { before: '', remaining: '', removed: '', rate: '' };
+    record.branches[branch][prop] = value === '' ? '' : Number(value);
+  } else if (field === 'degrouping') {
+    record.degrouping = !!value;
+  } else {
+    record[field] = value;
+  }
+  if (field === 'completionDate' && !value) {
+    record.finished = false;
+    record.thinningFinished = false;
+    if (record.status === 'éclaircissage réalisé') record.status = 'à observer';
+  }
+  if (record.finished && !canFinishThinning(record)) {
+    record.finished = false;
+    record.thinningFinished = false;
+    if (record.status === 'éclaircissage réalisé') record.status = 'à observer';
+  }
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  saveLocalData(false);
+  if (rerender) renderForm(id);
+  else updateFinishStateUI(id);
+}
+
+function updateFinishStateUI(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record || state.currentView !== 'form') return;
+  recalculateRecord(record);
+  const btn = document.querySelector('.sticky-finish');
+  let help = document.querySelector('.finish-help');
+  const ok = canFinishThinning(record);
+  const msg = getFinishValidationMessage(record);
+  if (btn) btn.disabled = !ok;
+  if (!ok && msg) {
+    if (!help) {
+      help = document.createElement('div');
+      help.className = 'finish-help';
+      document.body.appendChild(help);
+    }
+    help.textContent = msg;
+  } else if (help) {
+    help.remove();
+  }
+}
+
+function getFilteredRecords() {
+  let records = sortVarietiesForThinning(state.records.map(recalculateRecord));
+  const q = normalizeColumnName(state.search);
+  if (q) {
+    records = records.filter(r => normalizeColumnName([r.variety, r.denomination, r.se, r.parcel, r.row, r.treeStart, r.treeEnd].join(' ')).includes(q));
+  }
+  if (state.selectedParcel) records = records.filter(r => (r.parcel || r.group) === state.selectedParcel);
+  if (state.selectedWeek) records = records.filter(r => String(r.thinningWeek) === String(state.selectedWeek));
+  const thisWeek = getExcelWeekNumberMonday(todayISO());
+  switch (state.currentFilter) {
+    case 'À faire': records = records.filter(r => !isDoneRecord(r)); break;
+    case 'Finis': records = records.filter(r => isDoneRecord(r)); break;
+    case 'En retard': records = records.filter(r => isLate(r)); break;
+    case 'Cette semaine': records = records.filter(r => Number(r.thinningWeek) === Number(thisWeek)); break;
+    case 'Avec commentaire': records = records.filter(r => r.comment || r.misc); break;
+  }
+  return records;
+}
+
+function filterNames() {
+  return ['Toutes', 'À faire', 'Finis', 'En retard', 'Cette semaine', 'Avec commentaire'];
+}
+
+function renderExtraFilters() {
+  const parcels = unique(state.records.map(r => r.parcel || r.group).filter(Boolean));
+  const weeks = unique(state.records.map(r => r.thinningWeek).filter(Boolean)).sort((a,b) => num(a) - num(b));
+  return `<div class="list-filter-grid">
+    <div class="field"><label>Par parcelle</label><select id="parcelSelect"><option value="">Toutes</option>${parcels.map(p => `<option value="${escapeAttr(p)}" ${state.selectedParcel === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
+    <div class="field"><label>Par semaine d’éclaircissage</label><select id="weekSelect"><option value="">Toutes</option>${weeks.map(w => `<option value="${escapeAttr(w)}" ${String(state.selectedWeek) === String(w) ? 'selected' : ''}>Semaine ${escapeHtml(w)}</option>`).join('')}</select></div>
+  </div>`;
+}
+
+function renderRecordCard(r) {
+  const pos = formatTreePosition(r);
+  const done = isDoneRecord(r);
+  const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="compact-denomination">${escapeHtml(r.denomination)}</div>` : '';
+  return `<article class="compact-var-row ${done ? 'done' : ''}" onclick="renderForm('${r.id}')">
+    <div class="se-block ${seColorClass(r.se)}">${escapeHtml(r.se || '—')}</div>
+    <div class="compact-main"><div class="compact-main-name">${escapeHtml(r.variety || 'Sans variété')}${done ? '<span class="compact-check">✓</span>' : ''}</div>${denom}</div>
+    <div class="compact-position">${escapeHtml(pos)}</div>
+  </article>`;
+}
+
+function seColorClass(se) {
+  const code = String(se || '').trim().toUpperCase();
+  if (code === 'NJ') return 'se-nj';
+  if (code === 'PB') return 'se-pb';
+  if (code === 'PJ') return 'se-pj';
+  if (code === 'NS') return 'se-ns';
+  if (code === 'NB') return 'se-nb';
+  if (code === 'PBPL') return 'se-pbpl';
+  if (code === 'NBPL') return 'se-nbpl';
+  return 'se-default';
+}
+
+function formatTreePosition(r) {
+  const row = r.row || '—';
+  const start = r.treeStart || '—';
+  const end = r.treeEnd || '';
+  const tree = end && String(end) !== String(start) ? `${start}-${end}` : `${start}`;
+  return `R${row} · A${tree}`;
+}
+function isDoneRecord(r) {
+  return !!(r && (r.finished === true || r.thinningFinished === true));
+}
+function miniInfo(label, value) {
+  return `<div class="info-mini"><div class="info-mini-label">${escapeHtml(label)}</div><div class="info-mini-value">${escapeHtml(value ?? '—')}</div></div>`;
+}
+function layoutHeader(title, subtitle, back = true, right = '') {
+  return `<header class="topbar"><div class="topbar-row">
+    ${back ? '<button class="back-btn" onclick="goBack()"><span>Retour</span></button>' : '<button class="list-action-btn menu" onclick="renderHome()"><span class="icon">☰</span><span>Menu</span></button>'}
+    <div class="title-wrap"><h1 class="app-title">${escapeHtml(title)}</h1><p class="subtitle">${escapeHtml(subtitle || '')}</p></div>
+    ${right || '<button class="icon-btn" onclick="renderHome()"><span>Menu</span></button>'}
+  </div></header>`;
+}
+
+function listHeader(title, subtitle) {
+  return `<header class="topbar"><div class="topbar-row">
+    <button class="list-action-btn menu" onclick="renderHome()"><span class="icon">☰</span><span>Menu</span></button>
+    <div class="title-wrap" style="text-align:center"><h1 class="app-title">${escapeHtml(title)}</h1><p class="subtitle">${escapeHtml(subtitle || '')}</p></div>
+    <button class="list-action-btn stats" onclick="renderStats()"><span class="icon">📊</span><span>Stats</span></button>
+  </div></header>`;
+}
+
+
+function formHeader(record, done) {
+  const title = record.variety || 'Fiche variété';
+  const sub = `${record.parcel || record.group || '—'} · ${formatTreePosition(record)}`;
+  return `<header class="form-sticky-header">
+    <div class="form-header-grid">
+      <button class="back-btn" onclick="goBack()"><span>Retour</span></button>
+      <div class="form-title-block">
+        <div class="form-title-main">${escapeHtml(title)}</div>
+        <div class="form-title-sub only-location">${escapeHtml(sub)}</div>
+      </div>
+      <button class="icon-btn" onclick="renderHome()"><span>Menu</span></button>
+    </div>
+  </header>`;
+}
+
+function goBack() {
+  document.activeElement?.blur?.();
+  lockViewportMobile();
+  renderList();
+  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+}
+
+function progressBlock(progress, done, total) {
+  return `<div class="progress-wrap"><div class="progress-label"><span>Progression</span><span>${done}/${total} • ${progress}%</span></div><div class="progress"><div style="width:${progress}%"></div></div></div>`;
+}
+
+function inputField(label, field, value, type = 'text') {
+  return `<div class="field"><label>${label}</label><input type="${type}" data-field="${field}" value="${escapeAttr(value || '')}"></div>`;
+}
+function textareaField(label, field, value) {
+  return `<div class="field"><label>${label}</label><textarea data-field="${field}">${escapeHtml(value || '')}</textarea></div>`;
+}
+function readonlyField(label, value) {
+  return `<div class="field"><label>${label}</label><input value="${escapeAttr(value || '—')}" readonly></div>`;
+}
+function readTile(label, value) {
+  return `<div class="readonly-tile"><div class="readonly-label">${escapeHtml(label)}</div><div class="readonly-value">${escapeHtml(value ?? '—')}</div></div>`;
+}
+
+function rateSection(record) {
+  const deg = !!record.degrouping;
+  return `<details class="card collapsible" open>
+    <summary>✂️ Calcul du taux</summary>
+    <div class="collapsible-body">
+      <label class="check-row"><input type="checkbox" data-field="degrouping" ${deg ? 'checked' : ''}><span>Dégroupement : peu de fruits, on casse seulement les paquets</span></label>
+      ${deg ? '<p class="muted small">Aucun taux n’est calculé lorsque le dégroupement est coché.</p>' : `
+        ${branchInputCompact('Rameau petit', 'small', record)}
+        ${branchInputCompact('Rameau moyen', 'medium', record)}
+        ${branchInputCompact('Rameau gros', 'large', record)}
+      `}
+      <div class="hr"></div>
+      <div class="row wrap">
+        <span class="pill">Avant : ${record.totalBefore || '—'}</span>
+        <span class="pill">Après : ${record.totalRemaining || '—'}</span>
+        <span class="pill">Retirés : ${record.totalRemoved || '—'}</span>
+        <span class="pill ${rateColor(record.calculatedRate)}">Taux moyen : ${record.calculatedRate !== '' ? record.calculatedRate + ' %' : (deg ? '—' : 'calcul incomplet')}</span>
+        <span class="pill purple">Classe : ${record.calculatedRateClass || '—'}</span>
+      </div>
+      ${record.hasInvalidCounts ? '<div class="alert-item">Alerte : les fruits après éclaircissage ne peuvent pas être supérieurs aux fruits avant.</div>' : ''}
+      ${needsComment(record) ? '<div class="alert-item">Commentaire recommandé pour ce taux d’éclaircissage.</div>' : ''}
+    </div>
+  </details>`;
+}
+
+function branchInputCompact(label, key, record) {
+  const b = record.branches?.[key] || {};
+  return `<div class="branch-compact">
+    <div class="branch-name">${escapeHtml(label)}</div>
+    <div class="branch-mini-field"><label>Avant</label><input type="number" inputmode="numeric" min="0" step="1" data-field="branches.${key}.before" value="${escapeAttr(b.before ?? '')}"></div>
+    <div class="branch-mini-field"><label>Après</label><input type="number" inputmode="numeric" min="0" step="1" data-field="branches.${key}.remaining" value="${escapeAttr(b.remaining ?? '')}"></div>
+  </div>`;
+}
+
+function hasCompleteBranchCounts(record) {
+  return ['small', 'medium', 'large'].every(key => {
+    const b = record.branches?.[key] || {};
+    return numberOrBlank(b.before) !== '' && numberOrBlank(b.remaining) !== '';
+  });
+}
+
+function hasValidBranchCounts(record) {
+  if (!hasCompleteBranchCounts(record)) return false;
+  return ['small', 'medium', 'large'].every(key => {
+    const b = record.branches?.[key] || {};
+    const before = numberOrBlank(b.before);
+    const remaining = numberOrBlank(b.remaining);
+    return before !== '' && remaining !== '' && before >= 0 && remaining >= 0 && remaining <= before;
+  });
+}
+
+function canFinishThinning(record) {
+  if (!record.completionDate) return false;
+  if (record.degrouping) return true;
+  return hasValidBranchCounts(record);
+}
+
+function getFinishValidationMessage(record) {
+  if (!record.completionDate) return 'Renseigner la date de réalisation';
+  if (record.degrouping) return '';
+  if (!hasCompleteBranchCounts(record)) return 'Remplir les 3 rameaux ou cocher Dégroupement';
+  if (!hasValidBranchCounts(record)) return 'Corriger les valeurs : après ≤ avant';
+  return '';
+}
+
+function statCard(label, value) {
+  return `<div class="card compact"><div class="big-number">${escapeHtml(value)}</div><div class="muted small">${escapeHtml(label)}</div></div>`;
+}
+function miniTable(obj, headers) {
+  const rows = Object.entries(obj).sort((a,b) => b[1]-a[1]);
+  if (!rows.length) return '<p class="muted">Aucune donnée.</p>';
+  return `<div class="table-wrap"><table><thead><tr><th>${headers[0]}</th><th>${headers[1]}</th></tr></thead><tbody>${rows.map(([k,v]) => `<tr><td>${escapeHtml(k)}</td><td>${v}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function workloadTable(workload) {
+  if (!workload.length) return '<p class="muted">Aucune charge de travail calculable.</p>';
+  return `<div class="table-wrap"><table><thead><tr><th>Semaine</th><th>P1P2</th><th>AO P9C</th><th>IRTA</th><th>Autres</th><th>Total</th><th>Réalisées</th><th>Restantes</th><th>Heures</th><th>Niveau</th></tr></thead><tbody>${workload.map(w => `<tr><td>${escapeHtml(w.week)}</td><td>${w.P1P2}</td><td>${w['AO P9C']}</td><td>${w.IRTA}</td><td>${w.others}</td><td>${w.total}</td><td>${w.done}</td><td>${w.remaining}</td><td>${w.hours}</td><td>${escapeHtml(w.level)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function getStats() {
+  const total = state.records.length;
+  const done = state.records.filter(r => isDoneRecord(r)).length;
+  const observed = state.records.filter(r => r.completionDate || isDoneRecord(r)).length;
+  const rates = state.records.map(r => Number(r.calculatedRate)).filter(Number.isFinite);
+  const hist = state.records.map(r => Number(r.historicalRate)).filter(Number.isFinite);
+  return {
+    total,
+    done,
+    progress: total ? Math.round(done / total * 100) : 0,
+    observed,
+    ready: state.records.filter(r => r.status === 'prête à éclaircir').length,
+    thinned: state.records.filter(r => isDoneRecord(r)).length,
+    finalChecks: 0,
+    toCheck: 0,
+    urgent: state.records.filter(r => ['Urgent', 'Haute'].includes(r.priority)).length,
+    late: state.records.filter(isLate).length,
+    avgRate: rates.length ? round1(rates.reduce((a,b)=>a+b,0)/rates.length) : '',
+    avgHistoricalRate: hist.length ? round1(hist.reduce((a,b)=>a+b,0)/hist.length) : ''
+  };
+}
+
+function getQualityAlerts() {
+  const alerts = [];
+  state.records.forEach(r => {
+    const name = `${r.variety || 'Sans variété'} (${r.parcel || r.group || '—'})`;
+    if (isDoneRecord(r) && !r.completionDate) alerts.push({ title: 'Éclaircissage fini sans date', detail: name });
+    if (r.calculatedRate !== '' && !r.status) alerts.push({ title: 'Taux calculé sans statut', detail: name });
+    if (Number(r.calculatedRate) === 0 && !r.comment) alerts.push({ title: 'Taux 0 % sans commentaire', detail: name });
+    if (Number(r.calculatedRate) >= 80 && !r.comment) alerts.push({ title: 'Taux 4/5+ sans commentaire', detail: name });
+    if (r.hasInvalidCounts) alerts.push({ title: 'Fruits restants supérieurs aux fruits initiaux', detail: name });
+    
+    
+    const d = diffDays(todayISO(), r.correctedThinningDate);
+    if (!isDoneRecord(r) && d !== null && d <= 7 && d >= 0) alerts.push({ title: 'Date proche non finie', detail: name });
+    if (Number(r.historicalRate) >= 66 && !isDoneRecord(r)) alerts.push({ title: 'Taux historique élevé non fini', detail: name });
+    if (isLate(r)) alerts.push({ title: 'Date théorique d’éclaircissage dépassée', detail: name });
+  });
+  return alerts.slice(0, 80);
+}
+
+function recordToExportRow(r) {
+  return {
+    'groupe ou feuille d’origine': r.group,
+    'parcelle': r.parcel,
+    'SE': r.se,
+    'variété': r.variety,
+    'dénomination': r.denomination,
+    'clone': r.clone,
+    'rang': r.row,
+    'arbre de début': r.treeStart,
+    'arbre de fin': r.treeEnd,
+    'nombre d’arbres': r.treeCount,
+    'type de fruit': r.flat ? 'plate' : 'ronde',
+    'date de maturité': r.maturityDate,
+    'jour de l’année de maturité': r.maturityDay,
+    'date brute d’éclaircissage': r.rawThinningDate,
+    'date théorique d’éclaircissage corrigée': r.correctedThinningDate,
+    'semaine d’éclaircissage': r.thinningWeek,
+    'date manuelle “à faire le”': r.manualDate,
+    'date d’observation': r.observationDate,
+    'date de réalisation': r.completionDate,
+    'charge recommandée': r.recommendedLoad,
+    'taux historique': r.historicalRate,
+    'classe historique': r.historicalClass,
+    'statut': isDoneRecord(r) ? 'éclaircissage réalisé' : 'à faire',
+    'dégroupement': r.degrouping ? 'oui' : 'non',
+    'priorité': r.priority,
+    'fruits avant rameau petit': r.branches.small.before,
+    'fruits restants rameau petit': r.branches.small.remaining,
+    'fruits retirés rameau petit': r.branches.small.removed,
+    'taux rameau petit': r.branches.small.rate,
+    'fruits avant rameau moyen': r.branches.medium.before,
+    'fruits restants rameau moyen': r.branches.medium.remaining,
+    'fruits retirés rameau moyen': r.branches.medium.removed,
+    'taux rameau moyen': r.branches.medium.rate,
+    'fruits avant rameau gros': r.branches.large.before,
+    'fruits restants rameau gros': r.branches.large.remaining,
+    'fruits retirés rameau gros': r.branches.large.removed,
+    'taux rameau gros': r.branches.large.rate,
+    'total fruits avant': r.totalBefore,
+    'total fruits restants': r.totalRemaining,
+    'total fruits retirés': r.totalRemoved,
+    'taux moyen calculé': r.calculatedRate,
+    'classe de taux calculée': r.calculatedRateClass,
+    'commentaire éclaircissage': r.comment,
+    'divers': '',
+    'dernière modification': r.lastModified
+  };
+}
+
+function mergeRecords(oldRecords, newRecords) {
+  const map = new Map(oldRecords.map(r => [r.id, r]));
+  newRecords.forEach(r => {
+    if (map.has(r.id)) map.set(r.id, { ...r, ...map.get(r.id), lastModified: new Date().toISOString() });
+    else map.set(r.id, r);
+  });
+  return [...map.values()].map(recalculateRecord);
+}
+
+function emptyBranches() {
+  return {
+    small: { before: '', remaining: '', removed: '', rate: '' },
+    medium: { before: '', remaining: '', removed: '', rate: '' },
+    large: { before: '', remaining: '', removed: '', rate: '' }
+  };
+}
+function cleanCell(v) { return isBlankOrExcelError(v) ? '' : String(v).trim(); }
+function isBlankOrExcelError(v) { return v === null || v === undefined || String(v).trim() === '' || /^#(REF|VALUE|N\/A|DIV\/0|NAME|NULL|NUM)!?$/i.test(String(v).trim()); }
+function parseRate(v) { if (isBlankOrExcelError(v)) return ''; const s = String(v).replace('%','').replace(',','.').trim(); const n = Number(s); return Number.isFinite(n) ? round1(n) : ''; }
+function numberOrBlank(v) { if (v === '' || v === null || v === undefined) return ''; const n = Number(v); return Number.isFinite(n) ? n : ''; }
+function terrainNumber(v) { const m = String(v ?? '').match(/-?\d+(?:[,.]\d+)?/); if (!m) return 999999; const n = Number(m[0].replace(',', '.')); return Number.isFinite(n) ? n : 999999; }
+function num(v) { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 999999; }
+function round1(n) { return Math.round(Number(n) * 10) / 10; }
+function unique(arr) { return [...new Set(arr.map(String))].filter(Boolean); }
+function normalizeKey(v) { return normalizeColumnName(v).replace(/\s/g, ''); }
+function makeId(sheetName, row, variety, se) { return normalizeKey([sheetName, se, variety, cleanCell(row.join('|'))].join('|')).slice(0, 80) + '-' + Math.random().toString(36).slice(2, 8); }
+function calculateTreeCount(start, end) { const a = Number(start), b = Number(end); return Number.isFinite(a) && Number.isFinite(b) && b >= a ? b - a + 1 : ''; }
+function parseISODate(s) { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s || ''))) return null; const [y,m,d] = s.split('-').map(Number); return new Date(Date.UTC(y, m-1, d)); }
+function toISODate(d) { return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
+function formatYMD(y, m, d) { const date = new Date(Date.UTC(y, m-1, d)); return isNaN(date) ? '' : toISODate(date); }
+function todayISO() { return toISODate(new Date()); }
+function diffDays(fromISO, toISO) { const a = parseISODate(fromISO), b = parseISODate(toISO); if (!a || !b) return null; return Math.round((b-a)/86400000); }
+function compareDate(a,b) { if (!a && !b) return 0; if (!a) return 1; if (!b) return -1; return String(a).localeCompare(String(b)); }
+function displayDate(d) { return d ? d.split('-').reverse().join('/') : '—'; }
+function fmtDateTime(iso) { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('fr-FR'); }
+function isLate(r) { const d = diffDays(todayISO(), r.correctedThinningDate); return d !== null && d < 0 && !isDoneRecord(r); }
+function needsComment(r) { return (Number(r.calculatedRate) === 0 || Number(r.calculatedRate) >= 80 || r.calculatedRateClass === 'dégroupage') && !r.comment; }
+function groupCount(records, fn) { return records.reduce((acc, r) => { const k = fn(r) || '—'; acc[k] = (acc[k] || 0) + 1; return acc; }, {}); }
+function priorityColor(p) { return p === 'Urgent' ? 'red' : p === 'Haute' ? 'orange' : p === 'Moyenne' ? 'blue' : p === 'Terminé' ? 'green' : 'gray'; }
+function statusColor(s) { return s === 'à vérifier' ? 'red' : s === 'contrôle final réalisé' ? 'green' : s === 'éclaircissage réalisé' ? 'blue' : s === 'prête à éclaircir' ? 'orange' : 'gray'; }
+function rateColor(r) { return Number(r) >= 80 ? 'red' : Number(r) >= 66 ? 'orange' : Number(r) > 0 ? 'green' : 'gray'; }
+function escapeHtml(v) { return String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escapeAttr(v) { return escapeHtml(v).replace(/'/g, '&#39;'); }
+function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
+function debounce(fn, wait) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; }
+</script>
+</body>
+</html>
