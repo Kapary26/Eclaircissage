@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Suivi éclaircissage P&N v9</title>
+  <title>Suivi éclaircissage P&N v12</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
   <style>
@@ -631,40 +631,168 @@
     @media (prefers-color-scheme: dark) { .form-sticky-header { box-shadow: 0 8px 20px rgba(0,0,0,.45); } }
 
 
-    /* ===== v8 - Corrections terrain : fiche figée, tri verger, menu référence ===== */
+
+
+    /* ===== v11 - Gestion : graphique travail et création de parcelles ===== */
+    .workload-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      min-height: 260px;
+      overflow-x: auto;
+      padding: 18px 4px 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .workload-chart::-webkit-scrollbar { display: none; }
+    .workload-bar-item {
+      flex: 0 0 54px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      min-height: 240px;
+    }
+    .workload-bar {
+      width: 42px;
+      min-height: 28px;
+      border-radius: 12px 12px 6px 6px;
+      background: var(--blue);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 950;
+      box-shadow: 0 5px 14px rgba(0,122,255,.22);
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
+    .workload-bar.low { background: var(--green); box-shadow: 0 5px 14px rgba(52,199,89,.22); }
+    .workload-bar.medium { background: #ff9500; box-shadow: 0 5px 14px rgba(255,149,0,.22); }
+    .workload-bar.high { background: var(--red); box-shadow: 0 5px 14px rgba(255,59,48,.22); }
+    .workload-week-label {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 900;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .workload-total-label {
+      color: var(--text-2);
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .parcel-add-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .parcel-add-grid .field.full { grid-column: 1 / -1; }
+    .parcel-add-grid input, .parcel-add-grid select {
+      min-height: 44px;
+      border-radius: 12px;
+    }
+    .parcel-added-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .parcel-added-row {
+      display: grid;
+      grid-template-columns: 54px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      background: rgba(142,142,147,.08);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .parcel-added-title { font-size: 15px; font-weight: 750; color: var(--text); overflow-wrap: anywhere; }
+    .parcel-added-meta { font-size: 12px; font-weight: 700; color: var(--text-2); margin-top: 2px; }
+    .parcel-row-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .parcel-edit-btn,
+    .parcel-delete-btn {
+      border: 0;
+      color: #fff;
+      border-radius: 12px;
+      padding: 9px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .parcel-edit-btn { background: var(--blue); }
+    .parcel-delete-btn { background: var(--red); }
+    .parcel-cancel-edit-btn {
+      margin-top: 8px;
+      width: 100%;
+      border: 0;
+      color: var(--red);
+      background: transparent;
+      font-size: 14px;
+      font-weight: 850;
+      text-decoration: underline;
+    }
+    @media (max-width: 430px) {
+      .parcel-add-grid { grid-template-columns: 1fr; }
+      .parcel-add-grid .field.full { grid-column: auto; }
+      .parcel-added-row { grid-template-columns: 48px minmax(0, 1fr); }
+      .parcel-row-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; }
+      .parcel-edit-btn, .parcel-delete-btn { width: 100%; }
+    }
+
+
+    /* ===== v10 - Menu copié sur la logique modale de l’app de référence ===== */
     .menu-screen {
       min-height: 100vh;
       padding: calc(20px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
       background: var(--bg);
       animation: fadeIn 0.25s ease-out forwards;
     }
+
+    /* Même principe que l’autre app : la liste reste derrière, grisée, et le menu passe par-dessus. */
     .menu-overlay {
       position: fixed;
-      inset: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       z-index: 5000;
-      background: rgba(0,0,0,0.38);
+      background: rgba(0,0,0,0.40);
       display: flex;
-      align-items: flex-start;
       justify-content: center;
-      padding: calc(14px + var(--safe-top)) 14px calc(14px + var(--safe-bottom));
-      overflow-y: auto;
-      animation: overlayFadeIn 0.18s ease-out forwards;
+      align-items: flex-end;
+      padding: 0;
+      opacity: 1;
+      animation: overlayFadeIn 0.20s ease forwards;
       -webkit-overflow-scrolling: touch;
     }
-    .menu-overlay .menu-panel {
-      animation: menuSlideIn 0.22s ease-out forwards;
-    }
+
     .menu-panel {
       width: 100%;
       max-width: 430px;
-      margin: 0 auto;
+      max-height: calc(100vh - 86px - var(--safe-top));
+      overflow-y: auto;
       background: var(--card);
-      border-radius: 24px;
-      box-shadow: 0 12px 34px rgba(0,0,0,0.10);
-      padding: 20px;
+      border-radius: 24px 24px 0 0;
+      padding: 20px 16px calc(20px + var(--safe-bottom));
+      box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
+      animation: menuSlideIn 0.22s ease-out forwards;
+      -webkit-overflow-scrolling: touch;
     }
+
     @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes menuSlideIn { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes menuSlideIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+
     .menu-header {
       display: flex;
       align-items: center;
@@ -672,6 +800,7 @@
       gap: 12px;
       margin-bottom: 18px;
     }
+
     .menu-title {
       margin: 0;
       font-size: 24px;
@@ -679,6 +808,7 @@
       letter-spacing: -0.04em;
       color: var(--text);
     }
+
     .menu-close-btn {
       width: 54px;
       height: 54px;
@@ -694,14 +824,16 @@
       justify-content: center;
       box-shadow: 0 8px 20px rgba(255,59,48,0.24);
     }
+
     .menu-card {
       background: color-mix(in srgb, var(--card) 94%, var(--bg));
       border-radius: 20px;
       padding: 18px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.035);
       border: 1px solid rgba(142,142,147,0.10);
     }
+
     .menu-card-title {
       display: flex;
       align-items: center;
@@ -713,11 +845,17 @@
       font-weight: 900;
       color: var(--text);
     }
+
     .menu-button-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
+
+    .menu-button-grid.single {
+      grid-template-columns: 1fr;
+    }
+
     .menu-action {
       min-height: 52px;
       border: 0;
@@ -731,16 +869,19 @@
       gap: 6px;
       padding: 10px 12px;
     }
+
     .menu-action.orange { background: #ff9500; }
     .menu-action.blue { background: var(--blue); }
     .menu-action.green { background: var(--green); }
     .menu-action:disabled { opacity: .58; cursor: not-allowed; }
+
     .menu-meta-line {
       margin: 12px 0 0;
       color: var(--text-2);
       font-size: 12px;
       font-weight: 750;
     }
+
     .menu-reset-link {
       display: block;
       margin-top: 18px;
@@ -754,6 +895,18 @@
       width: 100%;
       padding: 8px;
     }
+
+    .menu-overlay.is-closing {
+      animation: overlayFadeOut 0.18s ease forwards;
+    }
+
+    .menu-overlay.is-closing .menu-panel {
+      animation: menuSlideOut 0.18s ease forwards;
+    }
+
+    @keyframes overlayFadeOut { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes menuSlideOut { from { transform: translateY(0); } to { transform: translateY(100%); } }
+
     .form-sticky-header {
       position: fixed !important;
       top: 0 !important;
@@ -897,6 +1050,8 @@ const STATUS = [
   'à vérifier'
 ];
 
+const SE_OPTIONS = ['NJ', 'PB', 'PJ', 'NS', 'NB', 'PBPL', 'NBPL'];
+
 const MATURITY_CLASSES = [
   { id: 1, label: 'Très précoces', source: 'Muy precoces', period: 'mai', min: 91, max: 151, caliber: 'B', weight: 130, production: 25, roundLoad: 30, flatLoad: 45 },
   { id: 2, label: 'Précoces / semi-précoces', source: 'Precoces / semi-precoces', period: 'juin', min: 152, max: 181, caliber: 'B-A / A-B', weight: 165, production: 40, roundLoad: 35, flatLoad: 55 },
@@ -937,6 +1092,7 @@ let state = {
   customParcels: [],
   parcelManagerSelected: '',
   parcelManagerSearch: '',
+  parcelEditId: null,
   lastSavedAt: null,
   lastExportAt: null,
   storageMode: 'localStorage'
@@ -961,6 +1117,12 @@ function lockViewportMobile() {
 const toastEl = document.getElementById('toast');
 
 /** Initialise l'application, charge les données locales et affiche l'accueil. */
+document.addEventListener('click', event => {
+  const workloadBtn = event.target.closest?.('#menuWorkloadButton');
+  const parcelBtn = event.target.closest?.('#menuParcelButton');
+  if (workloadBtn) openWorkloadFromMenu(event);
+  if (parcelBtn) openParcelManagementFromMenu(event);
+});
 document.addEventListener('DOMContentLoaded', initApp);
 async function initApp() {
   if (window.localforage) {
@@ -1231,15 +1393,18 @@ function calculatePriorityScore(record) {
   return record;
 }
 
+/** Compare deux variétés selon l'ordre terrain : parcelle, rang croissant, arbre croissant. */
+function compareVarietiesForThinning(a, b) {
+  return String(a?.parcel || a?.group || '').localeCompare(String(b?.parcel || b?.group || ''), 'fr', { numeric: true, sensitivity: 'base' }) ||
+    terrainNumber(a?.row) - terrainNumber(b?.row) ||
+    terrainNumber(a?.treeStart) - terrainNumber(b?.treeStart) ||
+    terrainNumber(a?.treeEnd) - terrainNumber(b?.treeEnd) ||
+    String(a?.variety || '').localeCompare(String(b?.variety || ''), 'fr', { numeric: true, sensitivity: 'base' });
+}
+
 /** Trie les variétés selon l'ordre terrain : parcelle, rang croissant, arbre croissant. */
 function sortVarietiesForThinning(records) {
-  return [...records].sort((a, b) =>
-    String(a.parcel || a.group || '').localeCompare(String(b.parcel || b.group || ''), 'fr', { numeric: true, sensitivity: 'base' }) ||
-    terrainNumber(a.row) - terrainNumber(b.row) ||
-    terrainNumber(a.treeStart) - terrainNumber(b.treeStart) ||
-    terrainNumber(a.treeEnd) - terrainNumber(b.treeEnd) ||
-    String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric: true, sensitivity: 'base' })
-  );
+  return Array.isArray(records) ? [...records].sort(compareVarietiesForThinning) : [];
 }
 
 /** Calcule la charge de travail hebdomadaire à partir des données importées. */
@@ -1299,8 +1464,8 @@ function renderHome() {
         <div class="menu-card">
           <h2 class="menu-card-title"><span>⚙️</span><span>Gestion</span></h2>
           <div class="menu-button-grid">
-            <button class="menu-action blue" onclick="closeMenuOverlay(); renderWorkload()">📋 Charge</button>
-            <button class="menu-action blue" onclick="closeMenuOverlay(); renderParcelManagement()">🌳 Parcelles</button>
+            <button id="menuWorkloadButton" type="button" class="menu-action blue" onclick="openWorkloadFromMenu(event)">📊 Travail</button>
+            <button id="menuParcelButton" type="button" class="menu-action blue" onclick="openParcelManagementFromMenu(event)">🌳 Parcelle</button>
           </div>
         </div>
 
@@ -1315,11 +1480,49 @@ function renderHome() {
   });
   document.body.appendChild(overlay);
   document.getElementById('fileImport')?.addEventListener('change', handleFileImport);
+  document.getElementById('menuWorkloadButton')?.addEventListener('click', openWorkloadFromMenu);
+  document.getElementById('menuParcelButton')?.addEventListener('click', openParcelManagementFromMenu);
 }
 
-function closeMenuOverlay() {
-  document.getElementById('menuOverlay')?.remove();
+function closeMenuOverlay(immediate = false) {
+  const overlay = document.getElementById('menuOverlay');
+  if (!overlay) return;
+  if (immediate) {
+    overlay.remove();
+    return;
+  }
+  overlay.classList.add('is-closing');
+  setTimeout(() => overlay.remove(), 180);
 }
+
+function openWorkloadFromMenu(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  closeMenuOverlay(true);
+  requestAnimationFrame(() => renderWorkload());
+}
+
+function openParcelManagementFromMenu(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  closeMenuOverlay(true);
+  requestAnimationFrame(() => {
+    try {
+      renderParcelManagement();
+    } catch (err) {
+      console.error('Erreur ouverture page Parcelle', err);
+      showToast('Erreur ouverture Parcelle');
+    }
+  });
+}
+
+// Fonctions exposées pour les boutons inline du menu et fallback iOS/Safari.
+window.openWorkloadFromMenu = openWorkloadFromMenu;
+window.openParcelManagementFromMenu = openParcelManagementFromMenu;
 
 /** Affiche la liste mobile des variétés avec recherche, filtres et progression. */
 function renderList() {
@@ -1475,21 +1678,42 @@ function renderStats() {
     </main>`;
 }
 
-/** Affiche la charge de travail hebdomadaire. */
+/** Affiche la charge de travail hebdomadaire sous forme de graphique en barres verticales. */
 function renderWorkload() {
   state.currentView = 'workload';
   const workload = calculateWeeklyWorkload(state.records);
-  app.innerHTML = layoutHeader('Charge de travail', `${AVG_MINUTES_PER_VARIETY} min par variété`, true) + `
+  app.innerHTML = layoutHeader('Travail', 'Temps estimé par semaine', true) + `
     <main class="content grid">
       <section class="card">
-        <h2 class="section-title">Synthèse hebdomadaire</h2>
+        <h2 class="section-title">Charge de travail hebdomadaire</h2>
+        ${workloadBarChart(workload)}
+      </section>
+      <section class="card">
+        <h2 class="section-title">Détail hebdomadaire</h2>
         ${workloadTable(workload)}
       </section>
       <section class="card">
-        <h2 class="section-title">Seuils utilisés</h2>
-        <p class="muted small">Faible ≤ ${WORKLOAD_THRESHOLDS_HOURS.low} h • Moyenne ≤ ${WORKLOAD_THRESHOLDS_HOURS.medium} h • Forte ≤ ${WORKLOAD_THRESHOLDS_HOURS.high} h • Au-delà : surcharge.</p>
+        <h2 class="section-title">Méthode de calcul</h2>
+        <p class="muted small">Temps estimé = nombre de variétés × ${AVG_MINUTES_PER_VARIETY} min / 60. Les heures sont affichées directement dans chaque barre.</p>
       </section>
     </main>`;
+}
+
+function workloadBarChart(workload) {
+  if (!workload.length) return '<div class="empty">Aucune semaine à afficher.</div>';
+  const maxHours = Math.max(...workload.map(w => Number(w.hours) || 0), 1);
+  return `<div class="workload-chart" aria-label="Graphique de charge de travail par semaine">
+    ${workload.map(w => {
+      const hours = Number(w.hours) || 0;
+      const height = Math.max(28, Math.round((hours / maxHours) * 210));
+      const levelClass = hours > WORKLOAD_THRESHOLDS_HOURS.high ? 'high' : hours > WORKLOAD_THRESHOLDS_HOURS.medium ? 'medium' : 'low';
+      return `<div class="workload-bar-item">
+        <div class="workload-bar ${levelClass}" style="height:${height}px">${escapeHtml(String(hours).replace('.', ','))} h</div>
+        <div class="workload-week-label">S${escapeHtml(w.week)}</div>
+        <div class="workload-total-label">${escapeHtml(w.total)} variétés</div>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 /** Sauvegarde localement les données et les métadonnées. */
@@ -1583,17 +1807,24 @@ async function resetSeason() {
 
 
 function renderParcelManagement() {
+  lockViewportMobile();
+  if (!Array.isArray(state.customParcels)) state.customParcels = [];
+  if (!Array.isArray(state.records)) state.records = [];
   state.currentView = 'parcels';
   const parcels = getAllParcels();
   if (!state.parcelManagerSelected && parcels.length) state.parcelManagerSelected = parcels[0];
   const selected = state.parcelManagerSelected || '';
-  const q = normalizeKey(state.parcelManagerSearch || '');
-  const filtered = state.records.filter(r => {
-    const hay = normalizeKey([r.se, r.variety, r.denomination, r.parcel, r.row, r.treeStart, r.treeEnd].join(' '));
-    return !q || hay.includes(q);
-  }).sort(sortVarietiesForThinning);
+  const editRecord = state.parcelEditId ? state.records.find(r => r.id === state.parcelEditId) : null;
+  if (editRecord && editRecord.parcel && state.parcelManagerSelected !== editRecord.parcel) state.parcelManagerSelected = editRecord.parcel;
+  const selectedAfterEdit = state.parcelManagerSelected || selected;
+  const selectedRecords = sortVarietiesForThinning(
+    state.records.filter(r => String(r.parcel || '') === String(selectedAfterEdit || ''))
+  );
+  const formTitle = editRecord ? 'Modifier une variété' : 'Ajouter une variété dans une parcelle';
+  const submitLabel = editRecord ? 'Enregistrer la modification' : 'Ajouter la variété';
+  const cancelEditButton = editRecord ? `<button class="parcel-cancel-edit-btn" type="button" onclick="cancelParcelEdit()">Annuler la modification</button>` : '';
 
-  app.innerHTML = layoutHeader('Parcelles', 'Créer et ranger les variétés', true) + `
+  app.innerHTML = layoutHeader('Parcelle', 'Créer une parcelle et ajouter des variétés', true) + `
     <main class="content grid">
       <section class="card">
         <h2 class="section-title">Créer une parcelle</h2>
@@ -1607,34 +1838,168 @@ function renderParcelManagement() {
       </section>
 
       <section class="card">
-        <h2 class="section-title">Ajouter des variétés dans une parcelle</h2>
-        <div class="fields">
-          <div class="field"><label>Parcelle cible</label><select id="parcelManagerSelect">${parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selected ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
-          <div class="field"><label>Rechercher une variété</label><input id="parcelManagerSearch" type="search" placeholder="Variété, SE, rang, arbre…" value="${escapeAttr(state.parcelManagerSearch || '')}"></div>
+        <h2 class="section-title">${formTitle}</h2>
+        <div class="parcel-add-grid">
+          <div class="field full"><label>Parcelle cible</label><select id="parcelManagerSelect">${parcels.length ? parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selectedAfterEdit ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('') : '<option value="">Créer une parcelle d’abord</option>'}</select></div>
+          <div class="field"><label>SE</label><select id="parcelAddSe" required><option value="">Choisir…</option>${SE_OPTIONS.map(se => `<option value="${escapeAttr(se)}" ${editRecord && editRecord.se === se ? 'selected' : ''}>${escapeHtml(se)}</option>`).join('')}</select></div>
+          <div class="field"><label>Variété</label><input id="parcelAddVariety" type="text" placeholder="Code variété" value="${escapeAttr(editRecord?.variety || '')}" required></div>
+          <div class="field full"><label>Dénomination</label><input id="parcelAddDenomination" type="text" placeholder="Nom commercial si disponible" value="${escapeAttr(editRecord?.denomination || '')}"></div>
+          <div class="field"><label>Rang</label><input id="parcelAddRow" type="number" inputmode="numeric" placeholder="Ex. 11" value="${escapeAttr(editRecord?.row || '')}" required></div>
+          <div class="field"><label>Arbre de début</label><input id="parcelAddTreeStart" type="number" inputmode="numeric" placeholder="Ex. 197" value="${escapeAttr(editRecord?.treeStart || '')}" required></div>
+          <div class="field"><label>Arbre de fin</label><input id="parcelAddTreeEnd" type="number" inputmode="numeric" placeholder="Ex. 201" value="${escapeAttr(editRecord?.treeEnd || '')}" required></div>
+          <div class="field"><label>Nb Arbres</label><input id="parcelAddTreeCount" type="number" inputmode="numeric" placeholder="Ex. 5" value="${escapeAttr(editRecord?.treeCount || '')}" required></div>
+          <div class="field full"><label>Maturité</label><input id="parcelAddMaturity" type="date" value="${escapeAttr(editRecord?.maturityDate || '')}" required></div>
         </div>
-        <p class="muted small">Le bouton Ajouter déplace la variété dans la parcelle cible. Les données d’éclaircissage restent conservées.</p>
-        <div class="parcel-list">
-          ${filtered.length ? filtered.map(r => parcelRecordRow(r, selected)).join('') : '<div class="empty">Aucune variété trouvée.</div>'}
+        <button class="btn primary full" style="margin-top:14px" onclick="addRecordToParcel()">${submitLabel}</button>
+        ${cancelEditButton}
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Variétés dans la parcelle ${escapeHtml(selectedAfterEdit || '—')}</h2>
+        <div class="parcel-added-list">
+          ${selectedRecords.length ? selectedRecords.map(parcelAddedRow).join('') : '<div class="empty">Aucune variété dans cette parcelle.</div>'}
         </div>
       </section>
     </main>`;
 
-  document.getElementById('parcelManagerSelect')?.addEventListener('change', e => { state.parcelManagerSelected = e.target.value; renderParcelManagement(); });
-  document.getElementById('parcelManagerSearch')?.addEventListener('input', debounce(e => { state.parcelManagerSearch = e.target.value; renderParcelManagement(); }, 250));
+  document.getElementById('parcelManagerSelect')?.addEventListener('change', e => { state.parcelManagerSelected = e.target.value; if (!state.parcelEditId) renderParcelManagement(); });
 }
 
-function parcelRecordRow(r, selectedParcel) {
-  const inSelected = selectedParcel && String(r.parcel || '') === String(selectedParcel);
-  const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="parcel-row-meta">${escapeHtml(r.denomination)}</div>` : '';
-  return `<div class="parcel-row">
+function parcelAddedRow(r) {
+  const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="parcel-added-meta">${escapeHtml(r.denomination)}</div>` : '';
+  return `<div class="parcel-added-row">
     <div class="se-block ${seColorClass(r.se)}">${escapeHtml(r.se || '—')}</div>
     <div>
-      <div class="compact-main-name">${escapeHtml(r.variety || 'Sans variété')}</div>
+      <div class="parcel-added-title">${escapeHtml(r.variety || 'Sans variété')}</div>
       ${denom}
-      <div class="parcel-row-meta">${escapeHtml(r.parcel || 'Sans parcelle')} · ${escapeHtml(formatTreePosition(r))}</div>
+      <div class="parcel-added-meta">${escapeHtml(formatTreePosition(r))} · ${escapeHtml(r.treeCount || calculateTreeCount(r.treeStart, r.treeEnd) || '—')} arbre(s) · Maturité ${escapeHtml(r.maturityDate || '—')}</div>
     </div>
-    <button class="parcel-small-btn ${inSelected ? 'remove' : ''}" onclick="assignRecordToParcel('${escapeAttr(r.id)}', '${escapeAttr(inSelected ? '' : selectedParcel)}')">${inSelected ? 'Retirer' : 'Ajouter'}</button>
+    <div class="parcel-row-actions">
+      <button class="parcel-edit-btn" onclick="editRecordFromParcel('${escapeAttr(r.id)}')">Modifier</button>
+      <button class="parcel-delete-btn" onclick="deleteRecordFromParcel('${escapeAttr(r.id)}')">Supprimer</button>
+    </div>
   </div>`;
+}
+
+function expectedManualTreeCount(start, end) {
+  const startNum = num(start);
+  const endNum = num(end);
+  if (!Number.isFinite(startNum) || !Number.isFinite(endNum)) return null;
+  if (startNum === endNum) return 1;
+  return Math.abs(endNum - startNum);
+}
+
+function editRecordFromParcel(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return showToast('Variété introuvable');
+  state.parcelEditId = id;
+  state.parcelManagerSelected = record.parcel || state.parcelManagerSelected || '';
+  renderParcelManagement();
+  setTimeout(() => document.getElementById('parcelAddVariety')?.focus(), 50);
+}
+
+function cancelParcelEdit() {
+  state.parcelEditId = null;
+  renderParcelManagement();
+}
+
+async function addRecordToParcel() {
+  const parcel = String(document.getElementById('parcelManagerSelect')?.value || '').trim();
+  if (!parcel) return showToast('Créer ou choisir une parcelle');
+
+  const se = cleanCell(document.getElementById('parcelAddSe')?.value || '');
+  const variety = cleanCell(document.getElementById('parcelAddVariety')?.value || '');
+  const denomination = cleanCell(document.getElementById('parcelAddDenomination')?.value || '');
+  const row = cleanCell(document.getElementById('parcelAddRow')?.value || '');
+  const treeStart = cleanCell(document.getElementById('parcelAddTreeStart')?.value || '');
+  const treeEnd = cleanCell(document.getElementById('parcelAddTreeEnd')?.value || '');
+  const explicitCount = cleanCell(document.getElementById('parcelAddTreeCount')?.value || '');
+  const maturityDate = normalizeDate(document.getElementById('parcelAddMaturity')?.value || '');
+
+  const missing = [];
+  if (!se) missing.push('SE');
+  if (!variety) missing.push('Variété');
+  if (!row) missing.push('Rang');
+  if (!treeStart) missing.push('Arbre de début');
+  if (!treeEnd) missing.push('Arbre de fin');
+  if (!explicitCount) missing.push('Nb Arbres');
+  if (!maturityDate) missing.push('Maturité');
+  if (missing.length) return showToast(`Champ obligatoire : ${missing[0]}`);
+
+  const rowNum = num(row);
+  const startNum = num(treeStart);
+  const endNum = num(treeEnd);
+  const countNum = num(explicitCount);
+  if (!Number.isFinite(rowNum) || !Number.isFinite(startNum) || !Number.isFinite(endNum) || !Number.isFinite(countNum)) return showToast('Valeurs numériques invalides');
+  if (![rowNum, startNum, endNum, countNum].every(Number.isInteger)) return showToast('Rang, arbres et Nb Arbres doivent être entiers');
+  if (endNum < startNum) return showToast('Arbre de fin inférieur au début');
+  if (countNum <= 0) return showToast('Nb Arbres doit être supérieur à 0');
+
+  const expectedCount = expectedManualTreeCount(startNum, endNum);
+  if (expectedCount !== countNum) {
+    return showToast(`Incohérence : A${startNum} à A${endNum} correspond à ${expectedCount} arbre(s), pas ${countNum}.`);
+  }
+
+  const editingId = state.parcelEditId;
+  const existing = editingId ? state.records.find(r => r.id === editingId) : null;
+  const baseRecord = existing ? { ...existing } : {
+    id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    clone: '',
+    typeFruit: '',
+    importedThinningDate: '',
+    manualDate: '',
+    completionDate: '',
+    observationDate: '',
+    recommendedLoad: '',
+    historicalRate: '',
+    historicalClass: '',
+    status: 'à observer',
+    finished: false,
+    degrouping: false,
+    comment: '',
+    misc: '',
+    branches: emptyBranches()
+  };
+
+  const updatedRecord = recalculateRecord({
+    ...baseRecord,
+    group: parcel,
+    parcel,
+    se,
+    variety,
+    denomination,
+    row,
+    treeStart,
+    treeEnd,
+    treeCount: explicitCount,
+    maturityDate,
+    lastModified: new Date().toISOString()
+  });
+
+  if (existing) {
+    state.records = state.records.map(r => r.id === editingId ? updatedRecord : r);
+    state.parcelEditId = null;
+    showToast('Variété modifiée');
+  } else {
+    state.records.push(updatedRecord);
+    showToast('Variété ajoutée');
+  }
+
+  if (!state.customParcels.includes(parcel) && !getAllParcels().includes(parcel)) state.customParcels.push(parcel);
+  state.parcelManagerSelected = parcel;
+  await saveLocalData(false);
+  renderParcelManagement();
+}
+
+async function deleteRecordFromParcel(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  if (!confirm(`Supprimer ${record.variety || record.se || 'cette variété'} de la liste ?`)) return;
+  state.records = state.records.filter(r => r.id !== id);
+  if (state.parcelEditId === id) state.parcelEditId = null;
+  await saveLocalData(false);
+  showToast('Variété supprimée');
+  renderParcelManagement();
 }
 
 async function addCustomParcel() {
@@ -1649,7 +2014,7 @@ async function addCustomParcel() {
 }
 
 async function removeCustomParcel(parcel) {
-  if (!confirm(`Supprimer la parcelle ${parcel} de la liste ? Les variétés déjà associées gardent ce nom de parcelle.`)) return;
+  if (!confirm(`Supprimer la parcelle ${parcel} de la liste ? Les arbres déjà associés gardent ce nom de parcelle.`)) return;
   state.customParcels = state.customParcels.filter(p => p !== parcel);
   if (state.parcelManagerSelected === parcel) state.parcelManagerSelected = '';
   await saveLocalData(false);
@@ -1657,7 +2022,6 @@ async function removeCustomParcel(parcel) {
 }
 
 async function assignRecordToParcel(id, parcel) {
-  if (!parcel && !confirm('Retirer cette variété de la parcelle sélectionnée ?')) return;
   const record = state.records.find(r => r.id === id);
   if (!record) return;
   record.parcel = parcel || '';
