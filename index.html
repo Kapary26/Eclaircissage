@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Suivi éclaircissage P&N v12</title>
+  <title>Suivi éclaircissage P&N v23</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
   <style>
@@ -633,58 +633,207 @@
 
 
 
-    /* ===== v11 - Gestion : graphique travail et création de parcelles ===== */
+    /* ===== v19 - Gestion : charge de travail par semaine et par parcelle ===== */
     .workload-chart {
       display: flex;
-      align-items: flex-end;
-      gap: 10px;
-      min-height: 260px;
-      overflow-x: auto;
-      padding: 18px 4px 8px;
-      -webkit-overflow-scrolling: touch;
-    }
-    .workload-chart::-webkit-scrollbar { display: none; }
-    .workload-bar-item {
-      flex: 0 0 54px;
-      display: flex;
       flex-direction: column;
+      gap: 13px;
+      padding: 8px 0 4px;
+    }
+    .workload-bar-item {
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr) 52px;
+      gap: 9px;
       align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      min-height: 240px;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      width: 100%;
+      color: inherit;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+      -webkit-tap-highlight-color: transparent;
     }
-    .workload-bar {
-      width: 42px;
-      min-height: 28px;
-      border-radius: 12px 12px 6px 6px;
-      background: var(--blue);
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding-top: 8px;
-      color: #fff;
-      font-size: 12px;
-      font-weight: 950;
-      box-shadow: 0 5px 14px rgba(0,122,255,.22);
-      writing-mode: vertical-rl;
-      text-orientation: mixed;
-    }
-    .workload-bar.low { background: var(--green); box-shadow: 0 5px 14px rgba(52,199,89,.22); }
-    .workload-bar.medium { background: #ff9500; box-shadow: 0 5px 14px rgba(255,149,0,.22); }
-    .workload-bar.high { background: var(--red); box-shadow: 0 5px 14px rgba(255,59,48,.22); }
+    .workload-bar-item:active { transform: scale(0.99); }
     .workload-week-label {
       color: var(--text);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 900;
-      text-align: center;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .workload-track {
+      min-width: 0;
+      height: 36px;
+      border-radius: 999px;
+      background: transparent;
+      overflow: hidden;
+      border: 0;
+      position: relative;
+    }
+    .workload-stack {
+      height: 100%;
+      min-width: 68px;
+      border-radius: 999px;
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      transition: width .22s ease, filter .18s ease;
+    }
+    .workload-segment {
+      height: 100%;
+      min-width: 7px;
+      flex: 0 0 auto;
+    }
+    .workload-segment:first-child { border-radius: 999px 0 0 999px; }
+    .workload-segment:last-child { border-radius: 0 999px 999px 0; }
+    .workload-segment:only-child { border-radius: 999px; }
+    .workload-bar-item.selected .workload-track { outline: 3px solid color-mix(in srgb, var(--blue) 28%, transparent); }
+    .workload-bar-item.selected .workload-stack { filter: brightness(1.04); }
+    .workload-hours-label {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 950;
+      text-align: left;
       white-space: nowrap;
     }
     .workload-total-label {
       color: var(--text-2);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 800;
-      text-align: center;
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+    .workload-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+    .workload-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(142,142,147,.11);
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .workload-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+    .workload-detail-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .workload-detail-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: rgba(142,142,147,.10);
+      border: 1px solid var(--line);
+    }
+    .workload-detail-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+    .workload-detail-meta {
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 850;
+      text-align: right;
       white-space: nowrap;
+    }
+    .workload-detail-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+    .workload-empty-detail {
+      color: var(--text-2);
+      font-size: 13px;
+      font-weight: 750;
+      margin: 8px 0 0;
+    }
+    .workload-detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5200;
+      background: rgba(0,0,0,.42);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      animation: overlayFadeIn .18s ease forwards;
+    }
+    .workload-detail-overlay.active { display: flex; }
+    .workload-detail-modal {
+      width: min(430px, 100%);
+      max-height: calc(100vh - 70px - var(--safe-top) - var(--safe-bottom));
+      overflow-y: auto;
+      background: var(--card);
+      color: var(--text);
+      border-radius: 22px;
+      padding: 18px 16px calc(18px + var(--safe-bottom));
+      box-shadow: 0 18px 46px rgba(0,0,0,.28);
+      animation: workloadModalIn .18s ease-out forwards;
+      -webkit-overflow-scrolling: touch;
+    }
+    @keyframes workloadModalIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .workload-detail-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .workload-detail-modal-title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 950;
+      letter-spacing: -.04em;
+    }
+    .workload-detail-modal-subtitle {
+      margin: 3px 0 0;
+      color: var(--text-2);
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .workload-detail-close {
+      width: 50px;
+      height: 50px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--red);
+      color: white;
+      font-size: 24px;
+      font-weight: 950;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px rgba(255,59,48,.24);
+      flex: 0 0 auto;
     }
     .parcel-add-grid {
       display: grid;
@@ -1020,6 +1169,56 @@
       line-height: 1;
     }
 
+
+    /* ===== v23 - En-têtes figés partout + recherche Variétés + blocs création repliés ===== */
+    .topbar {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 115 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      border-radius: 0 0 18px 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.035);
+    }
+    .topbar + .content,
+    .topbar ~ main.content {
+      padding-top: calc(82px + var(--safe-top)) !important;
+    }
+    .manager-search-card {
+      padding: 12px;
+      box-shadow: none;
+    }
+    .manager-search-card .searchbar { margin-top: 0; }
+    .manager-search-card input { min-height: 46px; }
+    .manager-empty-hint {
+      margin: 8px 0 0;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+    @media (prefers-color-scheme: dark) {
+      .topbar { box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+    }
+
+
+.tree-estimate-box { margin-top: 14px; padding: 14px; border-radius: 16px; background: var(--bg-app); border: 1px solid var(--border-color); }
+.tree-estimate-box h4 { margin: 0 0 10px 0; font-size: 16px; color: var(--text-main); }
+.estimate-load-line { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; }
+.estimate-load-line.warn strong { color: var(--warning); }
+.estimate-load-line.ok strong { color: var(--success); }
+.charge-real-box { margin-top: 12px; }
+.charge-real-box.ok { background: rgba(52, 199, 89, 0.14); border-color: rgba(52, 199, 89, 0.35); }
+.charge-real-box.ok span:first-child, .charge-real-box.ok strong { color: var(--success); }
+.charge-real-box.danger { background: rgba(255, 59, 48, 0.13); border-color: rgba(255, 59, 48, 0.32); }
+.charge-real-box.danger span:first-child, .charge-real-box.danger strong { color: var(--danger); }
+.charge-real-box.neutral { background: var(--bg-app); border-color: var(--border-color); }
+@media (min-width: 700px) { .estimate-load-line { flex-direction: row; justify-content: space-between; align-items: center; } }
+
 </style>
 </head>
 <body>
@@ -1035,8 +1234,12 @@
 
 const APP_KEY = 'suivi-eclaircissage-pn-v1';
 const EXPORT_DATE_KEY = 'suivi-eclaircissage-pn-last-export';
-const AVG_MINUTES_PER_VARIETY = 5;
-const WORKLOAD_THRESHOLDS_HOURS = { low: 4, medium: 8, high: 14 };
+const AVG_MINUTES_PER_5_TREES = 20;
+const STANDARD_TREES_PER_VARIETY = 5;
+const WORKLOAD_MINUTES_PER_TREE = AVG_MINUTES_PER_5_TREES / STANDARD_TREES_PER_VARIETY;
+const WORKLOAD_THRESHOLDS_HOURS = { low: 8, medium: 16, high: 30 };
+// Les nombres de rameaux ne sont pas définis par défaut : ils sont renseignés par variété dans Gestion > Variétés.
+const FRUITING_SHOOT_FIELDS = { small: 'shootSmall', medium: 'shootMedium', large: 'shootLarge' };
 
 const MAIN_SHEETS = ['P1P2', 'AO P9C', 'IRTA'];
 const REFERENCE_SHEETS = ['CSV', 'Hybrides', 'Feuil2'];
@@ -1092,7 +1295,10 @@ let state = {
   customParcels: [],
   parcelManagerSelected: '',
   parcelManagerSearch: '',
+  treesManagerSearch: '',
   parcelEditId: null,
+  parcelNameEdit: null,
+  selectedWorkloadWeek: null,
   lastSavedAt: null,
   lastExportAt: null,
   storageMode: 'localStorage'
@@ -1118,10 +1324,13 @@ const toastEl = document.getElementById('toast');
 
 /** Initialise l'application, charge les données locales et affiche l'accueil. */
 document.addEventListener('click', event => {
-  const workloadBtn = event.target.closest?.('#menuWorkloadButton');
-  const parcelBtn = event.target.closest?.('#menuParcelButton');
-  if (workloadBtn) openWorkloadFromMenu(event);
-  if (parcelBtn) openParcelManagementFromMenu(event);
+  const target = event.target;
+  const workloadBtn = target && target.closest ? target.closest('#menuWorkloadButton, [data-menu-action="workload"]') : null;
+  const parcelsBtn = target && target.closest ? target.closest('#menuParcelsButton, [data-menu-action="parcels"]') : null;
+  const treesBtn = target && target.closest ? target.closest('#menuTreesButton, [data-menu-action="trees"]') : null;
+  if (workloadBtn) return openWorkloadFromMenu(event);
+  if (parcelsBtn) return openParcelsManagementFromMenu(event);
+  if (treesBtn) return openTreesManagementFromMenu(event);
 });
 document.addEventListener('DOMContentLoaded', initApp);
 async function initApp() {
@@ -1285,21 +1494,50 @@ function getRecommendedLoad(maturityDate, flat) {
   return flat ? cls.flatLoad : cls.roundLoad;
 }
 
+/** Retourne les nombres de rameaux propres à une variété. */
+function getShootCounts(record) {
+  const large = numberOrBlank(record?.shootLarge);
+  const medium = numberOrBlank(record?.shootMedium);
+  const small = numberOrBlank(record?.shootSmall);
+  if (large === '' || medium === '' || small === '') return null;
+  if (![large, medium, small].every(v => Number.isInteger(Number(v)) && Number(v) >= 0)) return null;
+  if ((Number(large) + Number(medium) + Number(small)) <= 0) return null;
+  return { large: Number(large), medium: Number(medium), small: Number(small) };
+}
+
+function hasCompleteShootCounts(record) {
+  return !!getShootCounts(record);
+}
+
+function hasCompleteDegroupingCounts(record) {
+  return ['small', 'medium', 'large'].every(key => {
+    const b = record.branches?.[key] || {};
+    const remaining = numberOrBlank(b.remaining);
+    return remaining !== '' && Number(remaining) >= 0;
+  });
+}
+
 /** Calcule les fruits retirés, les taux par rameau et le taux moyen pondéré. */
 function calculateThinningRate(record) {
   record.branches = record.branches || emptyBranches();
+
   if (record.degrouping) {
     ['small', 'medium', 'large'].forEach(key => {
       record.branches[key] = record.branches[key] || { before: '', remaining: '', removed: '', rate: '' };
+      record.branches[key].before = '';
       record.branches[key].removed = '';
       record.branches[key].rate = '';
     });
     record.totalBefore = '';
-    record.totalRemaining = '';
     record.totalRemoved = '';
+    const completeDegroup = hasCompleteDegroupingCounts(record);
+    record.totalRemaining = completeDegroup
+      ? ['small', 'medium', 'large'].reduce((sum, key) => sum + Number(record.branches[key].remaining || 0), 0)
+      : '';
     record.calculatedRate = '';
     record.calculatedRateClass = 'Dégroupement';
     record.hasInvalidCounts = false;
+    calculateTreeFruitEstimate(record);
     return record;
   }
 
@@ -1331,6 +1569,84 @@ function calculateThinningRate(record) {
   record.calculatedRate = totalBefore ? round1((record.totalRemoved / totalBefore) * 100) : '';
   record.calculatedRateClass = completeCount === 3 && record.calculatedRate !== '' ? getThinningClass(record.calculatedRate) : 'calcul incomplet';
   record.hasInvalidCounts = invalid;
+  calculateTreeFruitEstimate(record);
+  return record;
+}
+
+/** Extrapole les fruits à l'échelle de l'arbre avec les nombres de rameaux propres à la variété. */
+function calculateTreeFruitEstimate(record) {
+  record.branches = record.branches || emptyBranches();
+  const shoots = getShootCounts(record);
+
+  if (!shoots) {
+    record.estimatedFruitBeforeTree = '';
+    record.estimatedFruitAfterTree = '';
+    record.estimatedFruitRemovedTree = '';
+    record.estimatedWeightedRate = '';
+    record.estimatedRateClass = 'rameaux à renseigner';
+    record.estimatedLoadGap = '';
+    return record;
+  }
+
+  if (record.degrouping) {
+    if (!hasCompleteDegroupingCounts(record)) {
+      record.estimatedFruitBeforeTree = '';
+      record.estimatedFruitAfterTree = '';
+      record.estimatedFruitRemovedTree = '';
+      record.estimatedWeightedRate = '';
+      record.estimatedRateClass = 'Dégroupement';
+      record.estimatedLoadGap = '';
+      return record;
+    }
+    const after =
+      Number(record.branches.small.remaining || 0) * shoots.small +
+      Number(record.branches.medium.remaining || 0) * shoots.medium +
+      Number(record.branches.large.remaining || 0) * shoots.large;
+    const load = numberOrBlank(record.recommendedLoad);
+    record.estimatedFruitBeforeTree = '';
+    record.estimatedFruitAfterTree = Math.round(after);
+    record.estimatedFruitRemovedTree = '';
+    record.estimatedWeightedRate = '';
+    record.estimatedRateClass = 'Dégroupement';
+    record.estimatedLoadGap = load !== '' ? Math.round(after - load) : '';
+    return record;
+  }
+
+  const complete = ['small', 'medium', 'large'].every(key => {
+    const b = record.branches[key] || {};
+    return numberOrBlank(b.before) !== '' && numberOrBlank(b.remaining) !== '';
+  });
+
+  if (!complete || record.hasInvalidCounts) {
+    record.estimatedFruitBeforeTree = '';
+    record.estimatedFruitAfterTree = '';
+    record.estimatedFruitRemovedTree = '';
+    record.estimatedWeightedRate = '';
+    record.estimatedRateClass = 'calcul incomplet';
+    record.estimatedLoadGap = '';
+    return record;
+  }
+
+  const before =
+    Number(record.branches.small.before || 0) * shoots.small +
+    Number(record.branches.medium.before || 0) * shoots.medium +
+    Number(record.branches.large.before || 0) * shoots.large;
+
+  const after =
+    Number(record.branches.small.remaining || 0) * shoots.small +
+    Number(record.branches.medium.remaining || 0) * shoots.medium +
+    Number(record.branches.large.remaining || 0) * shoots.large;
+
+  const removed = Math.max(0, before - after);
+  const rate = before > 0 ? round1((removed / before) * 100) : '';
+  const load = numberOrBlank(record.recommendedLoad);
+
+  record.estimatedFruitBeforeTree = Math.round(before);
+  record.estimatedFruitAfterTree = Math.round(after);
+  record.estimatedFruitRemovedTree = Math.round(removed);
+  record.estimatedWeightedRate = rate;
+  record.estimatedRateClass = rate !== '' ? getThinningClass(rate) : 'calcul incomplet';
+  record.estimatedLoadGap = load !== '' ? Math.round(after - load) : '';
   return record;
 }
 
@@ -1407,25 +1723,98 @@ function sortVarietiesForThinning(records) {
   return Array.isArray(records) ? [...records].sort(compareVarietiesForThinning) : [];
 }
 
-/** Calcule la charge de travail hebdomadaire à partir des données importées. */
+/** Retourne un libellé de parcelle utilisable dans les synthèses. */
+function workloadParcelName(record) {
+  return record.parcel || record.group || 'Sans parcelle';
+}
+
+/** Normalise un texte pour générer une clé stable sans accents ni caractères spéciaux. */
+function normalizeSearchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/** Couleur stable par parcelle pour les barres empilées. */
+function workloadParcelColor(parcel) {
+  const key = normalizeSearchText(parcel);
+  const fixed = {
+    'p1p2': '#007aff',
+    'p1p2': '#007aff',
+    'aop9c': '#ff9500',
+    'p9c': '#ff9500',
+    'irta': '#34c759',
+    'sansparcelle': '#8e8e93'
+  };
+  if (fixed[key]) return fixed[key];
+  const palette = ['#af52de', '#ff3b30', '#5ac8fa', '#ffcc00', '#5856d6', '#ff2d55', '#64d2ff', '#30d158'];
+  let hash = 0;
+  String(parcel || '').split('').forEach(ch => { hash = ((hash << 5) - hash) + ch.charCodeAt(0); hash |= 0; });
+  return palette[Math.abs(hash) % palette.length];
+}
+
+/** Retourne le nombre d'arbres à utiliser pour estimer le temps de travail.
+ * Si l'information est absente, on conserve l'hypothèse terrain : 20 min pour une variété standard de 5 arbres. */
+function getWorkloadTreeCount(record) {
+  const explicit = num(record?.treeCount);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const calculated = calculateTreeCount(record?.treeStart, record?.treeEnd);
+  if (Number.isFinite(calculated) && calculated > 0) return calculated;
+  return STANDARD_TREES_PER_VARIETY;
+}
+
+/** Calcule le temps d'éclaircissage en heures selon la règle 20 min pour 5 arbres. */
+function calculateWorkloadHoursFromTrees(treeCount) {
+  const trees = Number(treeCount) || 0;
+  return round1((trees * WORKLOAD_MINUTES_PER_TREE) / 60);
+}
+
+/** Calcule la charge de travail hebdomadaire à partir des variétés restant à éclaircir. */
 function calculateWeeklyWorkload(records) {
   const map = new Map();
   records.forEach(r => {
     const week = r.thinningWeek || 'Sans semaine';
     if (!map.has(week)) {
-      map.set(week, { week, P1P2: 0, 'AO P9C': 0, IRTA: 0, others: 0, total: 0, done: 0, remaining: 0, hours: 0, level: '' });
+      map.set(week, {
+        week,
+        P1P2: 0,
+        'AO P9C': 0,
+        IRTA: 0,
+        others: 0,
+        total: 0,
+        done: 0,
+        remaining: 0,
+        hours: 0,
+        level: '',
+        parcels: {}
+      });
     }
     const item = map.get(week);
-    if (r.group === 'P1P2') item.P1P2++;
-    else if (r.group === 'AO P9C') item['AO P9C']++;
-    else if (r.group === 'IRTA') item.IRTA++;
+    const group = r.group || r.parcel || '';
+    if (group === 'P1P2' || group === 'P1/P2') item.P1P2++;
+    else if (group === 'AO P9C' || group === 'P9C') item['AO P9C']++;
+    else if (group === 'IRTA') item.IRTA++;
     else item.others++;
+
     item.total++;
-    if (isDoneRecord(r)) item.done++;
-    else item.remaining++;
+    if (isDoneRecord(r)) {
+      item.done++;
+      return;
+    }
+
+    item.remaining++;
+    const parcel = workloadParcelName(r);
+    if (!item.parcels[parcel]) item.parcels[parcel] = { parcel, count: 0, trees: 0, hours: 0, color: workloadParcelColor(parcel) };
+    const trees = getWorkloadTreeCount(r);
+    item.parcels[parcel].count++;
+    item.parcels[parcel].trees += trees;
   });
+
   return [...map.values()].map(w => {
-    w.hours = round1(w.total * AVG_MINUTES_PER_VARIETY / 60);
+    Object.values(w.parcels).forEach(p => { p.hours = calculateWorkloadHoursFromTrees(p.trees); });
+    w.parcelDetails = Object.values(w.parcels).sort((a, b) => b.hours - a.hours || String(a.parcel).localeCompare(String(b.parcel), 'fr', { numeric: true, sensitivity: 'base' }));
+    w.hours = round1(w.parcelDetails.reduce((sum, p) => sum + (Number(p.hours) || 0), 0));
     if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.low) w.level = 'faible charge';
     else if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.medium) w.level = 'charge moyenne';
     else if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.high) w.level = 'forte charge';
@@ -1464,8 +1853,9 @@ function renderHome() {
         <div class="menu-card">
           <h2 class="menu-card-title"><span>⚙️</span><span>Gestion</span></h2>
           <div class="menu-button-grid">
-            <button id="menuWorkloadButton" type="button" class="menu-action blue" onclick="openWorkloadFromMenu(event)">📊 Travail</button>
-            <button id="menuParcelButton" type="button" class="menu-action blue" onclick="openParcelManagementFromMenu(event)">🌳 Parcelle</button>
+            <button id="menuParcelsButton" type="button" class="menu-action blue" data-menu-action="parcels">🌳 Parcelles</button>
+            <button id="menuTreesButton" type="button" class="menu-action blue" data-menu-action="trees">🍑 Variétés</button>
+            <button id="menuWorkloadButton" type="button" class="menu-action blue" data-menu-action="workload">📊 Travail</button>
           </div>
         </div>
 
@@ -1480,8 +1870,21 @@ function renderHome() {
   });
   document.body.appendChild(overlay);
   document.getElementById('fileImport')?.addEventListener('change', handleFileImport);
-  document.getElementById('menuWorkloadButton')?.addEventListener('click', openWorkloadFromMenu);
-  document.getElementById('menuParcelButton')?.addEventListener('click', openParcelManagementFromMenu);
+  const workloadButton = document.getElementById('menuWorkloadButton');
+  const parcelsButton = document.getElementById('menuParcelsButton');
+  const treesButton = document.getElementById('menuTreesButton');
+  if (workloadButton) {
+    workloadButton.onclick = openWorkloadFromMenu;
+    workloadButton.addEventListener('touchend', openWorkloadFromMenu, { passive: false });
+  }
+  if (parcelsButton) {
+    parcelsButton.onclick = openParcelsManagementFromMenu;
+    parcelsButton.addEventListener('touchend', openParcelsManagementFromMenu, { passive: false });
+  }
+  if (treesButton) {
+    treesButton.onclick = openTreesManagementFromMenu;
+    treesButton.addEventListener('touchend', openTreesManagementFromMenu, { passive: false });
+  }
 }
 
 function closeMenuOverlay(immediate = false) {
@@ -1497,32 +1900,56 @@ function closeMenuOverlay(immediate = false) {
 
 function openWorkloadFromMenu(event) {
   if (event) {
-    event.preventDefault();
-    event.stopPropagation();
+    event.preventDefault?.();
+    event.stopPropagation?.();
   }
-  closeMenuOverlay(true);
-  requestAnimationFrame(() => renderWorkload());
+  try {
+    closeMenuOverlay(true);
+    state.selectedWorkloadWeek = null;
+    renderWorkload();
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  } catch (err) {
+    console.error('Erreur ouverture page Travail', err);
+    showToast('Erreur ouverture Travail');
+  }
 }
 
-function openParcelManagementFromMenu(event) {
+function openParcelsManagementFromMenu(event) {
   if (event) {
-    event.preventDefault();
-    event.stopPropagation();
+    event.preventDefault?.();
+    event.stopPropagation?.();
   }
   closeMenuOverlay(true);
   requestAnimationFrame(() => {
     try {
-      renderParcelManagement();
+      renderParcelsManagement();
     } catch (err) {
-      console.error('Erreur ouverture page Parcelle', err);
-      showToast('Erreur ouverture Parcelle');
+      console.error('Erreur ouverture page Parcelles', err);
+      showToast('Erreur ouverture Parcelles');
+    }
+  });
+}
+
+function openTreesManagementFromMenu(event) {
+  if (event) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+  }
+  closeMenuOverlay(true);
+  requestAnimationFrame(() => {
+    try {
+      renderTreesManagement();
+    } catch (err) {
+      console.error('Erreur ouverture page Variétés', err);
+      showToast('Erreur ouverture Variétés');
     }
   });
 }
 
 // Fonctions exposées pour les boutons inline du menu et fallback iOS/Safari.
 window.openWorkloadFromMenu = openWorkloadFromMenu;
-window.openParcelManagementFromMenu = openParcelManagementFromMenu;
+window.openParcelsManagementFromMenu = openParcelsManagementFromMenu;
+window.openTreesManagementFromMenu = openTreesManagementFromMenu;
 
 /** Affiche la liste mobile des variétés avec recherche, filtres et progression. */
 function renderList() {
@@ -1543,7 +1970,18 @@ function renderList() {
       </div>
     </main>`;
 
-  document.getElementById('searchInput').addEventListener('input', e => { state.search = e.target.value; renderList(); });
+  document.getElementById('searchInput').addEventListener('input', e => {
+    state.search = e.target.value;
+    renderList();
+    requestAnimationFrame(() => {
+      const input = document.getElementById('searchInput');
+      if (input) {
+        input.focus({ preventScroll: true });
+        const pos = input.value.length;
+        try { input.setSelectionRange(pos, pos); } catch (_) {}
+      }
+    });
+  });
   document.querySelectorAll('[data-filter]').forEach(btn => btn.addEventListener('click', e => { state.currentFilter = e.currentTarget.dataset.filter; renderList(); }));
   const parcelSelect = document.getElementById('parcelSelect');
   if (parcelSelect) parcelSelect.addEventListener('change', e => { state.selectedParcel = e.target.value; renderList(); });
@@ -1568,7 +2006,7 @@ function renderForm(id) {
 
   app.innerHTML = formHeader(record, done) + `
     <main class="content grid form-content">
-      <details class="card collapsible" open>
+      <details class="card collapsible">
         <summary>📌 Informations éclaircissage</summary>
         <div class="collapsible-body">
           <div class="read-grid">
@@ -1576,7 +2014,6 @@ function renderForm(id) {
             ${readTile('Nb arbres', record.treeCount || '—')}
             ${readTile('Maturité', displayDate(record.maturityDate))}
             ${readTile('Créneau', getMaturityClass(record.maturityDate))}
-            ${readTile('Jour année', record.maturityDay || '—')}
             ${readTile('Éclaircir le', displayDate(record.correctedThinningDate))}
             ${readTile('Semaine', record.thinningWeek ? 'S' + record.thinningWeek : '—')}
             ${readTile('Jours avant éclair.', daysThinning === null ? '—' : daysThinning)}
@@ -1678,41 +2115,120 @@ function renderStats() {
     </main>`;
 }
 
-/** Affiche la charge de travail hebdomadaire sous forme de graphique en barres verticales. */
+/** Affiche la charge de travail hebdomadaire sous forme de barres horizontales empilées par parcelle. */
 function renderWorkload() {
+  lockViewportMobile();
   state.currentView = 'workload';
-  const workload = calculateWeeklyWorkload(state.records);
-  app.innerHTML = layoutHeader('Travail', 'Temps estimé par semaine', true) + `
+  state.selectedWorkloadWeek = null;
+  const workload = calculateWeeklyWorkload(Array.isArray(state.records) ? state.records : []);
+  app.innerHTML = layoutHeader('Travail', 'Temps restant par semaine', true) + `
     <main class="content grid">
       <section class="card">
         <h2 class="section-title">Charge de travail hebdomadaire</h2>
         ${workloadBarChart(workload)}
-      </section>
-      <section class="card">
-        <h2 class="section-title">Détail hebdomadaire</h2>
-        ${workloadTable(workload)}
+        <p class="workload-total-label">Chaque barre indique le temps total restant de la semaine. Les couleurs montrent la part de chaque parcelle. Touchez une semaine pour afficher le détail.</p>
       </section>
       <section class="card">
         <h2 class="section-title">Méthode de calcul</h2>
-        <p class="muted small">Temps estimé = nombre de variétés × ${AVG_MINUTES_PER_VARIETY} min / 60. Les heures sont affichées directement dans chaque barre.</p>
+        <p class="muted small">Temps estimé = nombre d’arbres restants × ${WORKLOAD_MINUTES_PER_TREE} min. Référence : ${AVG_MINUTES_PER_5_TREES} min pour 5 arbres. Les variétés déjà marquées comme finies ne sont pas comptées dans le temps restant.</p>
       </section>
-    </main>`;
+    </main>
+    <div id="workloadDetailOverlay" class="workload-detail-overlay" aria-hidden="true"></div>`;
+}
+
+function selectWorkloadWeek(week) {
+  state.selectedWorkloadWeek = String(week);
+  openWorkloadDetailModal(week);
+}
+window.selectWorkloadWeek = selectWorkloadWeek;
+
+function openWorkloadDetailModal(week) {
+  const workload = calculateWeeklyWorkload(Array.isArray(state.records) ? state.records : []);
+  const selected = workload.find(w => String(w.week) === String(week));
+  const overlay = document.getElementById('workloadDetailOverlay');
+  if (!overlay || !selected) return;
+  overlay.innerHTML = `
+    <section class="workload-detail-modal" role="dialog" aria-modal="true" aria-label="Détail semaine ${escapeAttr(String(selected.week))}">
+      <div class="workload-detail-modal-header">
+        <div>
+          <h2 class="workload-detail-modal-title">Semaine ${escapeHtml(selected.week)}</h2>
+          <p class="workload-detail-modal-subtitle">${escapeHtml(formatHours(selected.hours))} · ${selected.remaining} variété${selected.remaining > 1 ? 's' : ''} restante${selected.remaining > 1 ? 's' : ''}</p>
+        </div>
+        <button type="button" class="workload-detail-close" onclick="closeWorkloadDetailModal()" aria-label="Fermer le détail">×</button>
+      </div>
+      ${workloadParcelDetail(selected)}
+    </section>`;
+  overlay.classList.add('active');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+window.openWorkloadDetailModal = openWorkloadDetailModal;
+
+function closeWorkloadDetailModal() {
+  const overlay = document.getElementById('workloadDetailOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('active');
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = '';
+  state.selectedWorkloadWeek = null;
+}
+window.closeWorkloadDetailModal = closeWorkloadDetailModal;
+
+document.addEventListener('click', event => {
+  const overlay = document.getElementById('workloadDetailOverlay');
+  if (overlay && event.target === overlay) {
+    closeWorkloadDetailModal();
+    return;
+  }
+  const btn = event.target && event.target.closest ? event.target.closest('[data-workload-week]') : null;
+  if (!btn) return;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  selectWorkloadWeek(btn.dataset.workloadWeek);
+});
+
+function formatHours(value) {
+  const n = Number(value) || 0;
+  return String(round1(n)).replace('.', ',') + ' h';
 }
 
 function workloadBarChart(workload) {
-  if (!workload.length) return '<div class="empty">Aucune semaine à afficher.</div>';
-  const maxHours = Math.max(...workload.map(w => Number(w.hours) || 0), 1);
-  return `<div class="workload-chart" aria-label="Graphique de charge de travail par semaine">
-    ${workload.map(w => {
+  const rows = workload.filter(w => Number(w.hours) > 0);
+  if (!rows.length) return '<div class="empty">Aucune variété restante à éclaircir.</div>';
+  const maxHours = rows.reduce((max, w) => Math.max(max, Number(w.hours) || 0), 0) || 1;
+  const usedParcels = new Map();
+  rows.forEach(w => (w.parcelDetails || []).forEach(p => usedParcels.set(p.parcel, p.color)));
+  return `<div class="workload-chart" aria-label="Graphique horizontal de charge de travail par semaine">
+    ${rows.map(w => {
       const hours = Number(w.hours) || 0;
-      const height = Math.max(28, Math.round((hours / maxHours) * 210));
-      const levelClass = hours > WORKLOAD_THRESHOLDS_HOURS.high ? 'high' : hours > WORKLOAD_THRESHOLDS_HOURS.medium ? 'medium' : 'low';
-      return `<div class="workload-bar-item">
-        <div class="workload-bar ${levelClass}" style="height:${height}px">${escapeHtml(String(hours).replace('.', ','))} h</div>
+      const width = Math.max(9, Math.min(100, Math.round((hours / maxHours) * 1000) / 10));
+      const selected = String(w.week) === String(state.selectedWorkloadWeek) ? ' selected' : '';
+      return `<button type="button" class="workload-bar-item${selected}" data-workload-week="${escapeAttr(String(w.week))}" onclick="selectWorkloadWeek(this.dataset.workloadWeek)">
         <div class="workload-week-label">S${escapeHtml(w.week)}</div>
-        <div class="workload-total-label">${escapeHtml(w.total)} variétés</div>
-      </div>`;
+        <div class="workload-track">
+          <div class="workload-stack" style="width:${width}%">
+            ${(w.parcelDetails || []).map(p => {
+              const pct = hours ? Math.max(4, Math.round((Number(p.hours) / hours) * 1000) / 10) : 0;
+              return `<span class="workload-segment" title="${escapeAttr(p.parcel)} · ${escapeAttr(formatHours(p.hours))}" style="width:${pct}%;background:${escapeAttr(p.color)}"></span>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="workload-hours-label">${escapeHtml(formatHours(hours))}</div>
+      </button>`;
     }).join('')}
+    <div class="workload-legend">
+      ${[...usedParcels.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'fr', { numeric: true, sensitivity: 'base' })).map(([parcel, color]) => `<span class="workload-legend-item"><span class="workload-legend-dot" style="background:${escapeAttr(color)}"></span>${escapeHtml(parcel)}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
+function workloadParcelDetail(weekData) {
+  const details = weekData.parcelDetails || [];
+  if (!details.length) return '<p class="workload-empty-detail">Aucune variété restante pour cette semaine.</p>';
+  return `<div class="workload-detail-list">
+    ${details.map(p => `<div class="workload-detail-row">
+      <div class="workload-detail-name"><span class="workload-detail-dot" style="background:${escapeAttr(p.color)}"></span>${escapeHtml(p.parcel)}</div>
+      <div class="workload-detail-meta">${p.count} variété${p.count > 1 ? 's' : ''} · ${p.trees} arbre${p.trees > 1 ? 's' : ''} · ${escapeHtml(formatHours(p.hours))}</div>
+    </div>`).join('')}
   </div>`;
 }
 
@@ -1795,6 +2311,9 @@ async function resetSeason() {
   state.customParcels = [];
   state.parcelManagerSelected = '';
   state.parcelManagerSearch = '';
+  state.treesManagerSearch = '';
+  state.parcelEditId = null;
+  state.parcelNameEdit = null;
   try {
     if (window.localforage) await localforage.removeItem(APP_KEY);
     localStorage.removeItem(APP_KEY);
@@ -1806,63 +2325,212 @@ async function resetSeason() {
 }
 
 
-function renderParcelManagement() {
+function renderParcelsManagement() {
   lockViewportMobile();
   if (!Array.isArray(state.customParcels)) state.customParcels = [];
   if (!Array.isArray(state.records)) state.records = [];
   state.currentView = 'parcels';
   const parcels = getAllParcels();
-  if (!state.parcelManagerSelected && parcels.length) state.parcelManagerSelected = parcels[0];
-  const selected = state.parcelManagerSelected || '';
-  const editRecord = state.parcelEditId ? state.records.find(r => r.id === state.parcelEditId) : null;
-  if (editRecord && editRecord.parcel && state.parcelManagerSelected !== editRecord.parcel) state.parcelManagerSelected = editRecord.parcel;
-  const selectedAfterEdit = state.parcelManagerSelected || selected;
-  const selectedRecords = sortVarietiesForThinning(
-    state.records.filter(r => String(r.parcel || '') === String(selectedAfterEdit || ''))
-  );
-  const formTitle = editRecord ? 'Modifier une variété' : 'Ajouter une variété dans une parcelle';
-  const submitLabel = editRecord ? 'Enregistrer la modification' : 'Ajouter la variété';
-  const cancelEditButton = editRecord ? `<button class="parcel-cancel-edit-btn" type="button" onclick="cancelParcelEdit()">Annuler la modification</button>` : '';
+  const editName = state.parcelNameEdit || '';
+  const isEditing = !!editName;
+  const recordsByParcel = Object.fromEntries(parcels.map(p => [p, state.records.filter(r => String(r.parcel || '') === String(p)).length]));
 
-  app.innerHTML = layoutHeader('Parcelle', 'Créer une parcelle et ajouter des variétés', true) + `
+  app.innerHTML = layoutHeader('Parcelles', 'Créer, modifier ou supprimer des parcelles', true) + `
     <main class="content grid">
-      <section class="card">
-        <h2 class="section-title">Créer une parcelle</h2>
-        <div class="parcel-manager-actions">
-          <div class="field"><label>Nom de la parcelle</label><input id="newParcelName" type="text" placeholder="Ex. P3, P9C, IRTA…"></div>
-          <button class="btn secondary" onclick="addCustomParcel()">Ajouter</button>
+      <details class="card collapsible" ${isEditing ? 'open' : ''}>
+        <summary>${isEditing ? 'Modifier une parcelle' : 'Créer une parcelle'}</summary>
+        <div class="collapsible-body">
+          <div class="parcel-manager-actions">
+            <div class="field"><label>Nom de la parcelle</label><input id="parcelNameInput" type="text" placeholder="Ex. P1/P2, P9C, IRTA…" value="${escapeAttr(editName)}"></div>
+            <button class="btn secondary" onclick="saveParcelName()">${isEditing ? 'Enregistrer' : 'Créer'}</button>
+          </div>
+          ${isEditing ? '<button class="parcel-cancel-edit-btn" type="button" onclick="cancelParcelNameEdit()">Annuler la modification</button>' : ''}
         </div>
-        <div class="parcel-chip-row">
-          ${parcels.length ? parcels.map(p => `<span class="parcel-chip">🌳 ${escapeHtml(p)}${state.customParcels.includes(p) ? `<button onclick="removeCustomParcel('${escapeAttr(p)}')" aria-label="Supprimer ${escapeAttr(p)}">×</button>` : ''}</span>`).join('') : '<span class="muted small">Aucune parcelle disponible.</span>'}
-        </div>
-      </section>
+      </details>
 
       <section class="card">
-        <h2 class="section-title">${formTitle}</h2>
-        <div class="parcel-add-grid">
-          <div class="field full"><label>Parcelle cible</label><select id="parcelManagerSelect">${parcels.length ? parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selectedAfterEdit ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('') : '<option value="">Créer une parcelle d’abord</option>'}</select></div>
-          <div class="field"><label>SE</label><select id="parcelAddSe" required><option value="">Choisir…</option>${SE_OPTIONS.map(se => `<option value="${escapeAttr(se)}" ${editRecord && editRecord.se === se ? 'selected' : ''}>${escapeHtml(se)}</option>`).join('')}</select></div>
-          <div class="field"><label>Variété</label><input id="parcelAddVariety" type="text" placeholder="Code variété" value="${escapeAttr(editRecord?.variety || '')}" required></div>
-          <div class="field full"><label>Dénomination</label><input id="parcelAddDenomination" type="text" placeholder="Nom commercial si disponible" value="${escapeAttr(editRecord?.denomination || '')}"></div>
-          <div class="field"><label>Rang</label><input id="parcelAddRow" type="number" inputmode="numeric" placeholder="Ex. 11" value="${escapeAttr(editRecord?.row || '')}" required></div>
-          <div class="field"><label>Arbre de début</label><input id="parcelAddTreeStart" type="number" inputmode="numeric" placeholder="Ex. 197" value="${escapeAttr(editRecord?.treeStart || '')}" required></div>
-          <div class="field"><label>Arbre de fin</label><input id="parcelAddTreeEnd" type="number" inputmode="numeric" placeholder="Ex. 201" value="${escapeAttr(editRecord?.treeEnd || '')}" required></div>
-          <div class="field"><label>Nb Arbres</label><input id="parcelAddTreeCount" type="number" inputmode="numeric" placeholder="Ex. 5" value="${escapeAttr(editRecord?.treeCount || '')}" required></div>
-          <div class="field full"><label>Maturité</label><input id="parcelAddMaturity" type="date" value="${escapeAttr(editRecord?.maturityDate || '')}" required></div>
-        </div>
-        <button class="btn primary full" style="margin-top:14px" onclick="addRecordToParcel()">${submitLabel}</button>
-        ${cancelEditButton}
-      </section>
-
-      <section class="card">
-        <h2 class="section-title">Variétés dans la parcelle ${escapeHtml(selectedAfterEdit || '—')}</h2>
+        <h2 class="section-title">Parcelles créées</h2>
         <div class="parcel-added-list">
-          ${selectedRecords.length ? selectedRecords.map(parcelAddedRow).join('') : '<div class="empty">Aucune variété dans cette parcelle.</div>'}
+          ${parcels.length ? parcels.map(p => parcelManagementRow(p, recordsByParcel[p] || 0)).join('') : '<div class="empty">Aucune parcelle créée.</div>'}
         </div>
       </section>
     </main>`;
 
-  document.getElementById('parcelManagerSelect')?.addEventListener('change', e => { state.parcelManagerSelected = e.target.value; if (!state.parcelEditId) renderParcelManagement(); });
+}
+
+function parcelManagementRow(parcel, count) {
+  return `<div class="parcel-added-row parcel-management-row">
+    <div class="se-block se-neutral">🌳</div>
+    <div>
+      <div class="parcel-added-title">${escapeHtml(parcel || 'Sans nom')}</div>
+      <div class="parcel-added-meta">${count} variété${count > 1 ? 's' : ''} associée${count > 1 ? 's' : ''}</div>
+    </div>
+    <div class="parcel-row-actions">
+      <button class="parcel-edit-btn" onclick="editParcelName('${escapeAttr(parcel)}')">Modifier</button>
+      <button class="parcel-delete-btn" onclick="deleteParcelName('${escapeAttr(parcel)}')">Supprimer</button>
+    </div>
+  </div>`;
+}
+
+function renderTreesManagement() {
+  lockViewportMobile();
+  if (!Array.isArray(state.customParcels)) state.customParcels = [];
+  if (!Array.isArray(state.records)) state.records = [];
+  state.currentView = 'trees';
+  const parcels = getAllParcels();
+  if (!state.parcelManagerSelected && parcels.length) state.parcelManagerSelected = parcels[0];
+  const editRecord = state.parcelEditId ? state.records.find(r => r.id === state.parcelEditId) : null;
+  if (editRecord && editRecord.parcel && state.parcelManagerSelected !== editRecord.parcel) state.parcelManagerSelected = editRecord.parcel;
+  const selectedAfterEdit = state.parcelManagerSelected || '';
+  const treesSearch = state.treesManagerSearch || '';
+  const allRecords = filterTreesManagementRecords(sortVarietiesForThinning([...(state.records || [])]), treesSearch);
+  const totalRecords = (state.records || []).length;
+  const formTitle = editRecord ? 'Modifier une variété' : 'Créer une variété';
+  const submitLabel = editRecord ? 'Enregistrer la modification' : 'Ajouter la variété';
+  const cancelEditButton = editRecord ? `<button class="parcel-cancel-edit-btn" type="button" onclick="cancelParcelEdit()">Annuler la modification</button>` : '';
+
+  app.innerHTML = layoutHeader('Variétés', 'Créer, modifier ou supprimer des variétés', true) + `
+    <main class="content grid">
+      <details class="card collapsible" ${editRecord ? 'open' : ''}>
+        <summary>${formTitle}</summary>
+        <div class="collapsible-body">
+          <div class="parcel-add-grid">
+            <div class="field full"><label>Parcelle</label><select id="parcelManagerSelect" required>${parcels.length ? parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selectedAfterEdit ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('') : '<option value="">Créer une parcelle d’abord</option>'}</select></div>
+            <div class="field"><label>SE</label><select id="parcelAddSe" required><option value="">Choisir…</option>${SE_OPTIONS.map(se => `<option value="${escapeAttr(se)}" ${editRecord && editRecord.se === se ? 'selected' : ''}>${escapeHtml(se)}</option>`).join('')}</select></div>
+            <div class="field"><label>Variété</label><input id="parcelAddVariety" type="text" placeholder="Code variété" value="${escapeAttr(editRecord?.variety || '')}" required></div>
+            <div class="field full"><label>Dénomination</label><input id="parcelAddDenomination" type="text" placeholder="Nom commercial si disponible" value="${escapeAttr(editRecord?.denomination || '')}"></div>
+            <div class="field"><label>Rang</label><input id="parcelAddRow" type="number" inputmode="numeric" placeholder="Ex. 11" value="${escapeAttr(editRecord?.row || '')}" required></div>
+            <div class="field"><label>Arbre de début</label><input id="parcelAddTreeStart" type="number" inputmode="numeric" placeholder="Ex. 197" value="${escapeAttr(editRecord?.treeStart || '')}" required></div>
+            <div class="field"><label>Arbre de fin</label><input id="parcelAddTreeEnd" type="number" inputmode="numeric" placeholder="Ex. 201" value="${escapeAttr(editRecord?.treeEnd || '')}" required></div>
+            <div class="field"><label>Nb Arbres</label><input id="parcelAddTreeCount" type="number" inputmode="numeric" placeholder="Ex. 5" value="${escapeAttr(editRecord?.treeCount || '')}" required></div>
+            <div class="field full"><label>Maturité</label><input id="parcelAddMaturity" type="date" value="${escapeAttr(editRecord?.maturityDate || '')}" required></div>
+            <div class="field"><label>Gros rameaux/arbre</label><input id="parcelAddShootLarge" type="number" inputmode="numeric" min="0" step="1" placeholder="À renseigner" value="${escapeAttr(editRecord?.shootLarge ?? '')}"></div>
+            <div class="field"><label>Rameaux moyens/arbre</label><input id="parcelAddShootMedium" type="number" inputmode="numeric" min="0" step="1" placeholder="À renseigner" value="${escapeAttr(editRecord?.shootMedium ?? '')}"></div>
+            <div class="field"><label>Petits rameaux/arbre</label><input id="parcelAddShootSmall" type="number" inputmode="numeric" min="0" step="1" placeholder="À renseigner" value="${escapeAttr(editRecord?.shootSmall ?? '')}"></div>
+          </div>
+          <button class="btn primary full" style="margin-top:14px" onclick="addRecordToParcel()">${submitLabel}</button>
+          ${cancelEditButton}
+        </div>
+      </details>
+
+      <section class="card manager-search-card">
+        <div class="searchbar">
+          <input id="treesManagerSearchInput" type="search" placeholder="🔍 Rechercher SE, variété, dénomination, maturité, R10, A204…" value="${escapeAttr(treesSearch)}" />
+        </div>
+        <p class="manager-empty-hint">${allRecords.length} résultat(s) affiché(s) sur ${totalRecords} variété(s).</p>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Variétés créées</h2>
+        <div class="parcel-added-list">
+          ${allRecords.length ? allRecords.map(parcelAddedRow).join('') : '<div class="empty">Aucune variété ne correspond à la recherche.</div>'}
+        </div>
+      </section>
+    </main>`;
+
+  document.getElementById('parcelManagerSelect')?.addEventListener('change', e => { state.parcelManagerSelected = e.target.value; });
+  document.getElementById('treesManagerSearchInput')?.addEventListener('input', e => {
+    state.treesManagerSearch = e.target.value;
+    renderTreesManagement();
+    requestAnimationFrame(() => {
+      const input = document.getElementById('treesManagerSearchInput');
+      if (input) {
+        input.focus();
+        const len = input.value.length;
+        input.setSelectionRange?.(len, len);
+      }
+    });
+  });
+}
+
+
+function filterTreesManagementRecords(records, query) {
+  const q = normalizeKey(query || '');
+  if (!q) return records;
+  return records.filter(record => normalizeKey(buildTreeSearchText(record)).includes(q));
+}
+
+function buildTreeSearchText(record) {
+  const row = record?.row || '';
+  const start = record?.treeStart || '';
+  const end = record?.treeEnd || '';
+  const treeRange = end && String(end) !== String(start) ? `${start}-${end}` : `${start}`;
+  const compactRange = `${start}${end && String(end) !== String(start) ? end : ''}`;
+  return [
+    record?.se,
+    record?.variety,
+    record?.denomination,
+    record?.commercialName,
+    record?.parcel,
+    record?.group,
+    record?.maturityDate,
+    displayDate(record?.maturityDate),
+    row,
+    start,
+    end,
+    `R${row}`,
+    `A${start}`,
+    end ? `A${end}` : '',
+    `R${row} A${treeRange}`,
+    `R${row}A${treeRange}`,
+    `R${row} A${compactRange}`,
+    formatTreePosition(record || {})
+  ].filter(Boolean).join(' ');
+}
+
+function renderParcelManagement() {
+  renderTreesManagement();
+}
+
+
+async function saveParcelName() {
+  const input = document.getElementById('parcelNameInput');
+  const name = String(input?.value || '').trim();
+  if (!name) return showToast('Nom de parcelle manquant');
+
+  const oldName = state.parcelNameEdit;
+  const existingParcels = getAllParcels().filter(p => String(p) !== String(oldName || ''));
+  if (existingParcels.some(p => normalizeKey(p) === normalizeKey(name))) return showToast('Cette parcelle existe déjà');
+
+  if (oldName) {
+    state.customParcels = (state.customParcels || []).map(p => String(p) === String(oldName) ? name : p);
+    state.records.forEach(r => {
+      if (String(r.parcel || '') === String(oldName)) r.parcel = name;
+      if (String(r.group || '') === String(oldName)) r.group = name;
+      r.lastModified = new Date().toISOString();
+    });
+    state.parcelManagerSelected = name;
+    state.parcelNameEdit = null;
+    showToast('Parcelle modifiée');
+  } else {
+    if (!state.customParcels.includes(name)) state.customParcels.push(name);
+    state.parcelManagerSelected = name;
+    showToast('Parcelle créée');
+  }
+  await saveLocalData(false);
+  renderParcelsManagement();
+}
+
+function editParcelName(parcel) {
+  state.parcelNameEdit = parcel;
+  renderParcelsManagement();
+}
+
+function cancelParcelNameEdit() {
+  state.parcelNameEdit = null;
+  renderParcelsManagement();
+}
+
+async function deleteParcelName(parcel) {
+  const count = state.records.filter(r => String(r.parcel || '') === String(parcel)).length;
+  if (count > 0) return showToast('Supprimer d’abord les variétés de cette parcelle');
+  if (!confirm(`Supprimer la parcelle ${parcel} ?`)) return;
+  state.customParcels = (state.customParcels || []).filter(p => String(p) !== String(parcel));
+  if (state.parcelManagerSelected === parcel) state.parcelManagerSelected = '';
+  if (state.parcelNameEdit === parcel) state.parcelNameEdit = null;
+  await saveLocalData(false);
+  showToast('Parcelle supprimée');
+  renderParcelsManagement();
 }
 
 function parcelAddedRow(r) {
@@ -1872,7 +2540,7 @@ function parcelAddedRow(r) {
     <div>
       <div class="parcel-added-title">${escapeHtml(r.variety || 'Sans variété')}</div>
       ${denom}
-      <div class="parcel-added-meta">${escapeHtml(formatTreePosition(r))} · ${escapeHtml(r.treeCount || calculateTreeCount(r.treeStart, r.treeEnd) || '—')} arbre(s) · Maturité ${escapeHtml(r.maturityDate || '—')}</div>
+      <div class="parcel-added-meta">${escapeHtml(r.parcel || 'Sans parcelle')} · ${escapeHtml(formatTreePosition(r))} · ${escapeHtml(r.treeCount || calculateTreeCount(r.treeStart, r.treeEnd) || '—')} arbre(s) · Maturité ${escapeHtml(r.maturityDate || '—')} · Rameaux ${hasCompleteShootCounts(r) ? (Number(r.shootLarge) + Number(r.shootMedium) + Number(r.shootSmall)) : 'à renseigner'}</div>
     </div>
     <div class="parcel-row-actions">
       <button class="parcel-edit-btn" onclick="editRecordFromParcel('${escapeAttr(r.id)}')">Modifier</button>
@@ -1885,8 +2553,8 @@ function expectedManualTreeCount(start, end) {
   const startNum = num(start);
   const endNum = num(end);
   if (!Number.isFinite(startNum) || !Number.isFinite(endNum)) return null;
-  if (startNum === endNum) return 1;
-  return Math.abs(endNum - startNum);
+  // Intervalle inclusif : A204 à A208 = 204, 205, 206, 207, 208 = 5 arbres.
+  return Math.abs(endNum - startNum) + 1;
 }
 
 function editRecordFromParcel(id) {
@@ -1900,7 +2568,7 @@ function editRecordFromParcel(id) {
 
 function cancelParcelEdit() {
   state.parcelEditId = null;
-  renderParcelManagement();
+  renderTreesManagement();
 }
 
 async function addRecordToParcel() {
@@ -1915,6 +2583,9 @@ async function addRecordToParcel() {
   const treeEnd = cleanCell(document.getElementById('parcelAddTreeEnd')?.value || '');
   const explicitCount = cleanCell(document.getElementById('parcelAddTreeCount')?.value || '');
   const maturityDate = normalizeDate(document.getElementById('parcelAddMaturity')?.value || '');
+  const shootLarge = cleanCell(document.getElementById('parcelAddShootLarge')?.value || '');
+  const shootMedium = cleanCell(document.getElementById('parcelAddShootMedium')?.value || '');
+  const shootSmall = cleanCell(document.getElementById('parcelAddShootSmall')?.value || '');
 
   const missing = [];
   if (!se) missing.push('SE');
@@ -1934,6 +2605,14 @@ async function addRecordToParcel() {
   if (![rowNum, startNum, endNum, countNum].every(Number.isInteger)) return showToast('Rang, arbres et Nb Arbres doivent être entiers');
   if (endNum < startNum) return showToast('Arbre de fin inférieur au début');
   if (countNum <= 0) return showToast('Nb Arbres doit être supérieur à 0');
+
+  const shootValues = [shootLarge, shootMedium, shootSmall];
+  const shootFilled = shootValues.some(v => v !== '');
+  if (shootFilled) {
+    const shootNums = shootValues.map(v => v === '' ? null : num(v));
+    if (shootNums.some(v => v === null || !Number.isInteger(v) || v < 0)) return showToast('Les nombres de rameaux doivent être des entiers ≥ 0');
+    if (shootNums.every(v => v === 0)) return showToast('Au moins un type de rameau doit être supérieur à 0');
+  }
 
   const expectedCount = expectedManualTreeCount(startNum, endNum);
   if (expectedCount !== countNum) {
@@ -1972,6 +2651,9 @@ async function addRecordToParcel() {
     treeStart,
     treeEnd,
     treeCount: explicitCount,
+    shootLarge,
+    shootMedium,
+    shootSmall,
     maturityDate,
     lastModified: new Date().toISOString()
   });
@@ -1988,7 +2670,7 @@ async function addRecordToParcel() {
   if (!state.customParcels.includes(parcel) && !getAllParcels().includes(parcel)) state.customParcels.push(parcel);
   state.parcelManagerSelected = parcel;
   await saveLocalData(false);
-  renderParcelManagement();
+  renderTreesManagement();
 }
 
 async function deleteRecordFromParcel(id) {
@@ -1999,7 +2681,7 @@ async function deleteRecordFromParcel(id) {
   if (state.parcelEditId === id) state.parcelEditId = null;
   await saveLocalData(false);
   showToast('Variété supprimée');
-  renderParcelManagement();
+  renderTreesManagement();
 }
 
 async function addCustomParcel() {
@@ -2010,15 +2692,15 @@ async function addCustomParcel() {
   state.parcelManagerSelected = name;
   await saveLocalData(false);
   showToast('Parcelle créée');
-  renderParcelManagement();
+  renderParcelsManagement();
 }
 
 async function removeCustomParcel(parcel) {
-  if (!confirm(`Supprimer la parcelle ${parcel} de la liste ? Les arbres déjà associés gardent ce nom de parcelle.`)) return;
+  if (!confirm(`Supprimer la parcelle ${parcel} de la liste ? Les variétés déjà associées gardent ce nom de parcelle.`)) return;
   state.customParcels = state.customParcels.filter(p => p !== parcel);
   if (state.parcelManagerSelected === parcel) state.parcelManagerSelected = '';
   await saveLocalData(false);
-  renderParcelManagement();
+  renderParcelsManagement();
 }
 
 async function assignRecordToParcel(id, parcel) {
@@ -2380,7 +3062,12 @@ function rateSection(record) {
     <summary>✂️ Calcul du taux</summary>
     <div class="collapsible-body">
       <label class="check-row"><input type="checkbox" data-field="degrouping" ${deg ? 'checked' : ''}><span>Dégroupement : peu de fruits, on casse seulement les paquets</span></label>
-      ${deg ? '<p class="muted small">Aucun taux n’est calculé lorsque le dégroupement est coché.</p>' : `
+      ${deg ? `
+        <p class="muted small">En dégroupement, on ne saisit pas avant/après. Renseigner seulement les fruits conservés par type de rameau.</p>
+        ${degroupingBranchInputCompact('Rameau petit', 'small', record)}
+        ${degroupingBranchInputCompact('Rameau moyen', 'medium', record)}
+        ${degroupingBranchInputCompact('Rameau gros', 'large', record)}
+      ` : `
         ${branchInputCompact('Rameau petit', 'small', record)}
         ${branchInputCompact('Rameau moyen', 'medium', record)}
         ${branchInputCompact('Rameau gros', 'large', record)}
@@ -2390,13 +3077,72 @@ function rateSection(record) {
         <span class="pill">Avant : ${record.totalBefore || '—'}</span>
         <span class="pill">Après : ${record.totalRemaining || '—'}</span>
         <span class="pill">Retirés : ${record.totalRemoved || '—'}</span>
-        <span class="pill ${rateColor(record.calculatedRate)}">Taux moyen : ${record.calculatedRate !== '' ? record.calculatedRate + ' %' : (deg ? '—' : 'calcul incomplet')}</span>
-        <span class="pill purple">Classe : ${record.calculatedRateClass || '—'}</span>
       </div>
+      ${fruitTreeEstimateBlock(record)}
       ${record.hasInvalidCounts ? '<div class="alert-item">Alerte : les fruits après éclaircissage ne peuvent pas être supérieurs aux fruits avant.</div>' : ''}
-      ${needsComment(record) ? '<div class="alert-item">Commentaire recommandé pour ce taux d’éclaircissage.</div>' : ''}
     </div>
   </details>`;
+}
+
+function getChargeTolerance(recommendedLoad) {
+  const load = numberOrBlank(recommendedLoad);
+  if (load === '') return '';
+  return Math.round(Number(load) * 0.18);
+}
+
+function getChargeRealStatus(realLoad, recommendedLoad) {
+  const real = numberOrBlank(realLoad);
+  const load = numberOrBlank(recommendedLoad);
+  const tolerance = getChargeTolerance(recommendedLoad);
+  if (real === '' || load === '' || tolerance === '') return 'neutral';
+  return Math.abs(Number(real) - Number(load)) <= Number(tolerance) ? 'ok' : 'danger';
+}
+
+function chargeRealBox(record) {
+  const real = record.estimatedFruitAfterTree;
+  const status = getChargeRealStatus(real, record.recommendedLoad);
+  const label = real !== '' ? `${real} fruits/arbre` : '—';
+  return `<div class="charge-advice-box charge-real-box ${status}"><span>Charge réelle</span><strong>${label}</strong></div>`;
+}
+
+function fruitTreeEstimateBlock(record) {
+  const load = record.recommendedLoad || '';
+  const gap = record.estimatedLoadGap;
+  const gapClass = gap === '' ? '' : Number(gap) > 0 ? 'warn' : Number(gap) < 0 ? 'ok' : 'neutral';
+
+  if (!hasCompleteShootCounts(record)) {
+    return `<div class="tree-estimate-box">
+      <h4>🌳 Estimation fruits/arbre</h4>
+      <div class="alert-item">Renseigner les nombres de gros, moyens et petits rameaux dans Gestion &gt; Variétés &gt; Modifier la variété.</div>
+    </div>`;
+  }
+
+  if (record.degrouping) {
+    return `<div class="tree-estimate-box">
+      <h4>🌳 Estimation après dégroupement</h4>
+      <div class="row wrap">
+        <span class="pill">Après : ${record.estimatedFruitAfterTree !== '' ? record.estimatedFruitAfterTree + ' fruits/arbre' : '—'}</span>
+      </div>
+      ${chargeRealBox(record)}
+    </div>`;
+  }
+
+  const before = record.estimatedFruitBeforeTree;
+  const after = record.estimatedFruitAfterTree;
+  const removed = record.estimatedFruitRemovedTree;
+  const rate = record.estimatedWeightedRate;
+  const cls = record.estimatedRateClass || 'calcul incomplet';
+  return `<div class="tree-estimate-box">
+    <h4>🌳 Estimation fruits/arbre</h4>
+    <div class="row wrap">
+      <span class="pill">Avant : ${before !== '' ? before + ' fruits/arbre' : '—'}</span>
+      <span class="pill">Après : ${after !== '' ? after + ' fruits/arbre' : '—'}</span>
+      <span class="pill">Retirés : ${removed !== '' ? removed + ' fruits/arbre' : '—'}</span>
+      <span class="pill ${rateColor(rate)}">Taux estimé : ${rate !== '' ? rate + ' %' : '—'}</span>
+      <span class="pill purple">Classe : ${escapeHtml(cls)}</span>
+    </div>
+    ${chargeRealBox(record)}
+  </div>`;
 }
 
 function branchInputCompact(label, key, record) {
@@ -2405,6 +3151,14 @@ function branchInputCompact(label, key, record) {
     <div class="branch-name">${escapeHtml(label)}</div>
     <div class="branch-mini-field"><label>Avant</label><input type="number" inputmode="numeric" min="0" step="1" data-field="branches.${key}.before" value="${escapeAttr(b.before ?? '')}"></div>
     <div class="branch-mini-field"><label>Après</label><input type="number" inputmode="numeric" min="0" step="1" data-field="branches.${key}.remaining" value="${escapeAttr(b.remaining ?? '')}"></div>
+  </div>`;
+}
+
+function degroupingBranchInputCompact(label, key, record) {
+  const b = record.branches?.[key] || {};
+  return `<div class="branch-compact degrouping-branch">
+    <div class="branch-name">${escapeHtml(label)}</div>
+    <div class="branch-mini-field single"><label>Fruits après dégroupement</label><input type="number" inputmode="numeric" min="0" step="1" data-field="branches.${key}.remaining" value="${escapeAttr(b.remaining ?? '')}"></div>
   </div>`;
 }
 
@@ -2427,13 +3181,18 @@ function hasValidBranchCounts(record) {
 
 function canFinishThinning(record) {
   if (!record.completionDate) return false;
-  if (record.degrouping) return true;
-  return hasValidBranchCounts(record);
+  if (!hasCompleteShootCounts(record)) return false;
+  if (record.degrouping) return hasCompleteDegroupingCounts(record);
+  return hasValidBranchCounts(record) && record.estimatedFruitAfterTree !== '';
 }
 
 function getFinishValidationMessage(record) {
   if (!record.completionDate) return 'Renseigner la date de réalisation';
-  if (record.degrouping) return '';
+  if (!hasCompleteShootCounts(record)) return 'Renseigner les rameaux dans Gestion > Variétés > Modifier la variété';
+  if (record.degrouping) {
+    if (!hasCompleteDegroupingCounts(record)) return 'Remplir les fruits après dégroupement des 3 rameaux';
+    return '';
+  }
   if (!hasCompleteBranchCounts(record)) return 'Remplir les 3 rameaux ou cocher Dégroupement';
   if (!hasValidBranchCounts(record)) return 'Corriger les valeurs : après ≤ avant';
   return '';
@@ -2505,6 +3264,10 @@ function recordToExportRow(r) {
     'arbre de début': r.treeStart,
     'arbre de fin': r.treeEnd,
     'nombre d’arbres': r.treeCount,
+    'gros rameaux/arbre': r.shootLarge,
+    'rameaux moyens/arbre': r.shootMedium,
+    'petits rameaux/arbre': r.shootSmall,
+    'total rameaux/arbre': hasCompleteShootCounts(r) ? Number(r.shootLarge) + Number(r.shootMedium) + Number(r.shootSmall) : '',
     'type de fruit': r.flat ? 'plate' : 'ronde',
     'date de maturité': r.maturityDate,
     'jour de l’année de maturité': r.maturityDay,
@@ -2537,6 +3300,12 @@ function recordToExportRow(r) {
     'total fruits retirés': r.totalRemoved,
     'taux moyen calculé': r.calculatedRate,
     'classe de taux calculée': r.calculatedRateClass,
+    'fruits estimés avant par arbre': r.estimatedFruitBeforeTree,
+    'fruits estimés après par arbre': r.estimatedFruitAfterTree,
+    'fruits estimés retirés par arbre': r.estimatedFruitRemovedTree,
+    'taux estimé pondéré': r.estimatedWeightedRate,
+    'classe estimée pondérée': r.estimatedRateClass,
+    'écart à la charge conseillée': r.estimatedLoadGap,
     'commentaire éclaircissage': r.comment,
     'divers': '',
     'dernière modification': r.lastModified
