@@ -612,8 +612,13 @@
     .collapsible { padding: 0; overflow: hidden; }
     .collapsible > summary { list-style: none; cursor: pointer; padding: 14px; font-size: 17px; font-weight: 900; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .collapsible > summary::-webkit-details-marker { display: none; }
-    .collapsible > summary::after { content: '▾'; color: var(--text-2); font-size: 17px; transition: transform .18s ease; }
+    .collapsible > summary::after { content: '▾'; color: var(--text-2); font-size: 17px; transition: transform .18s ease; flex: 0 0 auto; }
     .collapsible:not([open]) > summary::after { transform: rotate(-90deg); }
+    .summary-title { flex: 1 1 auto; min-width: 0; }
+    .section-status { flex: 0 0 auto; max-width: 48%; padding: 6px 10px; border-radius: 999px; background: rgba(118,118,128,0.12); color: var(--text-2); font-size: 12px; font-weight: 900; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .section-status.ok { background: rgba(52,199,89,0.16); color: var(--success); }
+    .section-status.rate { background: rgba(175,82,222,0.16); color: #af52de; }
+    .section-status.warn { background: rgba(243,156,18,0.16); color: var(--warning); }
     .collapsible-body { padding: 0 14px 14px; }
     .read-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
     .readonly-tile { background: rgba(142,142,147,.12); border-radius: 13px; padding: 10px; min-width: 0; }
@@ -2100,6 +2105,50 @@ function attachSequentialFieldNavigation() {
   });
 }
 
+
+function sectionStatusHtml(section, record) {
+  let label = '';
+  let cls = '';
+  if (section === 'info') {
+    label = record.correctedThinningDate ? 'OK' : '';
+    cls = 'ok';
+  } else if (section === 'structure') {
+    if (hasCompleteShootCounts(record)) {
+      const total = Number(record.shootLarge) + Number(record.shootMedium) + Number(record.shootSmall);
+      label = `${total} rameaux`;
+      cls = 'ok';
+    }
+  } else if (section === 'realization') {
+    if (record.completionDate) {
+      label = displayDate(record.completionDate);
+      cls = 'ok';
+    }
+  } else if (section === 'rate') {
+    const hasRate = record.calculatedRate !== '' && record.calculatedRate !== undefined && record.calculatedRate !== null && record.calculatedRateClass && record.calculatedRateClass !== 'calcul incomplet';
+    if (hasRate) {
+      label = `${record.calculatedRate} % · ${record.calculatedRateClass}`;
+      cls = 'rate';
+    }
+  } else if (section === 'comment') {
+    if (String(record.comment || '').trim()) {
+      label = 'Complété';
+      cls = 'ok';
+    }
+  }
+  return label ? `<span class="section-status ${cls}" data-section-status="${section}">${escapeHtml(label)}</span>` : `<span class="section-status" data-section-status="${section}" style="display:none"></span>`;
+}
+
+function updateFormSectionStatuses(record) {
+  ['info', 'structure', 'realization', 'rate', 'comment'].forEach(section => {
+    const current = document.querySelector(`[data-section-status="${section}"]`);
+    if (!current) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = sectionStatusHtml(section, record);
+    const fresh = tmp.firstElementChild;
+    if (fresh) current.replaceWith(fresh);
+  });
+}
+
 /** Affiche la fiche détaillée et le formulaire d'éclaircissage d'une variété. */
 function renderForm(id) {
   const record = state.records.find(r => r.id === id) || state.records.find(r => r.id === state.selectedId);
@@ -2118,7 +2167,7 @@ function renderForm(id) {
   app.innerHTML = formHeader(record, done) + `
     <main class="content grid form-content">
       <details class="card collapsible" data-section="info"${getFormSectionOpenAttr('info')}>
-        <summary>📌 Informations éclaircissage</summary>
+        <summary><span class="summary-title">📌 Informations éclaircissage</span>${sectionStatusHtml('info', record)}</summary>
         <div class="collapsible-body">
           <div class="read-grid">
             ${readTile('Type', record.flat ? 'plate' : 'ronde')}
@@ -2139,7 +2188,7 @@ function renderForm(id) {
       ${shootStructureSection(record)}
 
       <details class="card collapsible" data-section="realization"${getFormSectionOpenAttr('realization')}>
-        <summary>📅 Réalisation</summary>
+        <summary><span class="summary-title">📅 Réalisation</span>${sectionStatusHtml('realization', record)}</summary>
         <div class="collapsible-body">
           <div class="fields">
             ${inputField('Date de réalisation', 'completionDate', record.completionDate, 'date')}
@@ -2151,7 +2200,7 @@ function renderForm(id) {
       ${rateSection(record, showRateBlock)}
 
       <details class="card collapsible" data-section="comment"${getFormSectionOpenAttr('comment')}>
-        <summary>💬 Commentaire</summary>
+        <summary><span class="summary-title">💬 Commentaire</span>${sectionStatusHtml('comment', record)}</summary>
         <div class="collapsible-body">
           ${textareaField('Commentaire', 'comment', record.comment || '')}
         </div>
@@ -3032,6 +3081,12 @@ function updateFinishStateUI(id) {
   const ok = canFinishThinning(record);
   const msg = getFinishValidationMessage(record);
   if (btn) btn.disabled = !ok;
+
+  // Mise à jour instantanée des résultats visibles sans reconstruire toute la fiche.
+  updateFormSectionStatuses(record);
+  const chargeBox = document.querySelector('[data-charge-real-box]');
+  if (chargeBox) chargeBox.outerHTML = chargeRealBox(record);
+
   if (!ok && msg) {
     if (!help) {
       help = document.createElement('div');
@@ -3172,7 +3227,7 @@ function readTile(label, value) {
 function shootStructureSection(record) {
   const total = hasCompleteShootCounts(record) ? Number(record.shootLarge) + Number(record.shootMedium) + Number(record.shootSmall) : '';
   return `<details class="card collapsible" data-section="structure"${getFormSectionOpenAttr('structure')}>
-    <summary>🌿 Structure de l’arbre</summary>
+    <summary><span class="summary-title">🌿 Structure de l’arbre</span>${sectionStatusHtml('structure', record)}</summary>
     <div class="collapsible-body">
       <div class="parcel-add-grid">
         <div class="field"><label>Gros rameaux</label><input type="number" inputmode="numeric" enterkeyhint="next" min="0" step="1" data-field="shootLarge" value="${escapeAttr(record.shootLarge ?? '')}"></div>
@@ -3185,9 +3240,8 @@ function shootStructureSection(record) {
 }
 
 function rateSection(record, showInputs = true) {
-  const hasClass = record.calculatedRateClass && record.calculatedRateClass !== 'calcul incomplet';
   return `<details class="card collapsible" data-section="rate"${getFormSectionOpenAttr('rate')}>
-    <summary>✂️ Calcul du taux</summary>
+    <summary><span class="summary-title">✂️ Calcul du taux</span>${sectionStatusHtml('rate', record)}</summary>
     <div class="collapsible-body">
       ${showInputs ? `
         <div class="branch-table-head">
@@ -3200,7 +3254,6 @@ function rateSection(record, showInputs = true) {
         ${branchInputCompact('Gros', 'large', record)}
       ` : '<p class="muted small" style="margin:0">Renseigner d’abord la date de réalisation pour saisir le calcul du taux.</p>'}
       <div class="rate-essential-row">
-        <span class="pill purple">Classe : ${escapeHtml(hasClass ? record.calculatedRateClass : 'à calculer')}</span>
         ${chargeRealBox(record)}
         <button type="button" class="btn inline secondary" onclick="openEstimateDetailModal('${record.id}')">Détail</button>
       </div>
@@ -3227,7 +3280,7 @@ function chargeRealBox(record) {
   const real = record.estimatedFruitAfterTree;
   const status = getChargeRealStatus(real, record.recommendedLoad);
   const label = real !== '' ? `${real} fruits/arbre` : '—';
-  return `<div class="charge-advice-box charge-real-box ${status}"><span>Charge réelle</span><strong>${label}</strong></div>`;
+  return `<div class="charge-advice-box charge-real-box ${status}" data-charge-real-box><span>Charge réelle</span><strong>${label}</strong></div>`;
 }
 
 function fruitTreeEstimateBlock(record) {
