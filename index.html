@@ -384,6 +384,8 @@
     }
     .back-btn::before { content: '⬅'; font-size: 18px; line-height: 1; }
     .icon-btn::before { content: '☰'; font-size: 18px; line-height: 1; }
+    .reset-form-btn { background: var(--red) !important; color: white !important; }
+    .reset-form-btn::before { content: '🔄' !important; font-size: 18px; line-height: 1; }
     .searchbar { margin-top: 0; }
     .searchbar input {
       min-height: 44px;
@@ -636,9 +638,13 @@
     .finish-help { position: fixed; left: 14px; right: 14px; bottom: calc(72px + var(--safe-bottom)); z-index: 69; text-align: center; color: var(--text-2); font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--bg) 86%, transparent); border-radius: 999px; padding: 7px 10px; pointer-events: none; }
     .sticky-finish:disabled { background: var(--text-2) !important; box-shadow: none !important; opacity: .72; }
 
-    .rate-essential-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
-    .rate-essential-row .charge-real-box { flex: 1 1 100%; margin: 0; }
-    .rate-essential-row .btn.inline { flex: 0 0 auto; }
+    .rate-essential-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin-top: 12px; }
+    .rate-essential-row .charge-real-box { min-width: 0; margin: 0; }
+    .rate-essential-row .btn.inline { width: auto; min-height: 42px; padding: 10px 14px; justify-self: start; }
+    @media (max-width: 390px) {
+      .rate-essential-row { grid-template-columns: 1fr; }
+      .rate-essential-row .btn.inline { width: 100%; }
+    }
 
     .compact-var-row.done { opacity: 1; border-left: 5px solid var(--green); }
     @media (prefers-color-scheme: dark) { .form-sticky-header { box-shadow: 0 8px 20px rgba(0,0,0,.45); } }
@@ -1362,6 +1368,9 @@ let state = {
   parcelEditId: null,
   parcelNameEdit: null,
   selectedWorkloadWeek: null,
+  history: [],
+  historySearch: '',
+  historyYearFilter: '',
   lastSavedAt: null,
   lastExportAt: null,
   storageMode: 'localStorage'
@@ -1391,9 +1400,11 @@ document.addEventListener('click', event => {
   const workloadBtn = target && target.closest ? target.closest('#menuWorkloadButton, [data-menu-action="workload"]') : null;
   const parcelsBtn = target && target.closest ? target.closest('#menuParcelsButton, [data-menu-action="parcels"]') : null;
   const treesBtn = target && target.closest ? target.closest('#menuTreesButton, [data-menu-action="trees"]') : null;
+  const historyBtn = target && target.closest ? target.closest('#menuHistoryButton, [data-menu-action="history"]') : null;
   if (workloadBtn) return openWorkloadFromMenu(event);
   if (parcelsBtn) return openParcelsManagementFromMenu(event);
   if (treesBtn) return openTreesManagementFromMenu(event);
+  if (historyBtn) return openHistoryFromMenu(event);
 });
 document.addEventListener('DOMContentLoaded', initApp);
 async function initApp() {
@@ -1816,9 +1827,32 @@ function getWorkloadTreeCount(record) {
 }
 
 /** Calcule le temps d'éclaircissage en heures selon la règle 20 min pour 5 arbres. */
-function calculateWorkloadHoursFromTrees(treeCount) {
+function calculateWorkloadHoursFromTrees(treeCount, record = null) {
   const trees = Number(treeCount) || 0;
-  return round1((trees * WORKLOAD_MINUTES_PER_TREE) / 60);
+  const baseMinutes = trees * WORKLOAD_MINUTES_PER_TREE;
+  const coef = getHistoricalTimeCoefficient(record);
+  return round1((baseMinutes * coef) / 60);
+}
+
+
+function getMondayOfISODate(date) {
+  const d = parseISODate(date);
+  if (!d) return '';
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() - day + 1);
+  return toISODate(d);
+}
+
+function addDaysISO(date, days) {
+  const d = parseISODate(date);
+  if (!d) return '';
+  d.setUTCDate(d.getUTCDate() + Number(days || 0));
+  return toISODate(d);
+}
+
+function formatWeekDateRange(start, end) {
+  if (!start || !end) return '';
+  return `Du ${displayDate(start)} au ${displayDate(end)}`;
 }
 
 /** Calcule la charge de travail hebdomadaire à partir des variétés restant à éclaircir. */
@@ -1838,10 +1872,20 @@ function calculateWeeklyWorkload(records) {
         remaining: 0,
         hours: 0,
         level: '',
-        parcels: {}
+        parcels: {},
+        weekStart: '',
+        weekEnd: ''
       });
     }
     const item = map.get(week);
+    const dateForWeek = r.correctedThinningDate || r.manualDate || r.thinningDate || r.rawThinningDate || '';
+    if (dateForWeek) {
+      const monday = getMondayOfISODate(dateForWeek);
+      if (monday && (!item.weekStart || monday < item.weekStart)) {
+        item.weekStart = monday;
+        item.weekEnd = addDaysISO(monday, 6);
+      }
+    }
     const group = r.group || r.parcel || '';
     if (group === 'P1P2' || group === 'P1/P2') item.P1P2++;
     else if (group === 'AO P9C' || group === 'P9C') item['AO P9C']++;
@@ -1860,12 +1904,19 @@ function calculateWeeklyWorkload(records) {
     const trees = getWorkloadTreeCount(r);
     item.parcels[parcel].count++;
     item.parcels[parcel].trees += trees;
+    item.parcels[parcel].minutes = (item.parcels[parcel].minutes || 0) + (trees * WORKLOAD_MINUTES_PER_TREE * getHistoricalTimeCoefficient(r));
   });
 
   return [...map.values()].map(w => {
-    Object.values(w.parcels).forEach(p => { p.hours = calculateWorkloadHoursFromTrees(p.trees); });
+    Object.values(w.parcels).forEach(p => { p.hours = round1((p.minutes || 0) / 60); });
     w.parcelDetails = Object.values(w.parcels).sort((a, b) => b.hours - a.hours || String(a.parcel).localeCompare(String(b.parcel), 'fr', { numeric: true, sensitivity: 'base' }));
     w.hours = round1(w.parcelDetails.reduce((sum, p) => sum + (Number(p.hours) || 0), 0));
+    if (!w.weekStart) {
+      const firstRecordDate = (records || []).map(r => (String(r.thinningWeek) === String(w.week) ? (r.correctedThinningDate || r.manualDate || r.thinningDate || r.rawThinningDate || '') : '')).find(Boolean);
+      w.weekStart = getMondayOfISODate(firstRecordDate);
+      w.weekEnd = w.weekStart ? addDaysISO(w.weekStart, 6) : '';
+    }
+    w.weekDateRange = formatWeekDateRange(w.weekStart, w.weekEnd);
     if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.low) w.level = 'faible charge';
     else if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.medium) w.level = 'charge moyenne';
     else if (w.hours <= WORKLOAD_THRESHOLDS_HOURS.high) w.level = 'forte charge';
@@ -1907,6 +1958,7 @@ function renderHome() {
             <button id="menuParcelsButton" type="button" class="menu-action blue" data-menu-action="parcels">🌳 Parcelles</button>
             <button id="menuTreesButton" type="button" class="menu-action blue" data-menu-action="trees">🍑 Base variétale</button>
             <button id="menuWorkloadButton" type="button" class="menu-action blue" data-menu-action="workload">📊 Travail</button>
+            <button id="menuHistoryButton" type="button" class="menu-action blue" data-menu-action="history">📚 Historique</button>
           </div>
         </div>
 
@@ -1924,6 +1976,7 @@ function renderHome() {
   const workloadButton = document.getElementById('menuWorkloadButton');
   const parcelsButton = document.getElementById('menuParcelsButton');
   const treesButton = document.getElementById('menuTreesButton');
+  const historyButton = document.getElementById('menuHistoryButton');
   if (workloadButton) {
     workloadButton.onclick = openWorkloadFromMenu;
     workloadButton.addEventListener('touchend', openWorkloadFromMenu, { passive: false });
@@ -1935,6 +1988,10 @@ function renderHome() {
   if (treesButton) {
     treesButton.onclick = openTreesManagementFromMenu;
     treesButton.addEventListener('touchend', openTreesManagementFromMenu, { passive: false });
+  }
+  if (historyButton) {
+    historyButton.onclick = openHistoryFromMenu;
+    historyButton.addEventListener('touchend', openHistoryFromMenu, { passive: false });
   }
 }
 
@@ -1997,10 +2054,27 @@ function openTreesManagementFromMenu(event) {
   });
 }
 
+function openHistoryFromMenu(event) {
+  if (event) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+  }
+  closeMenuOverlay(true);
+  requestAnimationFrame(() => {
+    try {
+      renderHistory();
+    } catch (err) {
+      console.error('Erreur ouverture page Historique', err);
+      showToast('Erreur ouverture Historique');
+    }
+  });
+}
+
 // Fonctions exposées pour les boutons inline du menu et fallback iOS/Safari.
 window.openWorkloadFromMenu = openWorkloadFromMenu;
 window.openParcelsManagementFromMenu = openParcelsManagementFromMenu;
 window.openTreesManagementFromMenu = openTreesManagementFromMenu;
+window.openHistoryFromMenu = openHistoryFromMenu;
 
 /** Affiche la liste mobile des variétés avec recherche, filtres et progression. */
 function renderList() {
@@ -2103,6 +2177,30 @@ function attachSequentialFieldNavigation() {
       }
     });
   });
+}
+
+
+function formSectionForField(field) {
+  if (['shootLarge', 'shootMedium', 'shootSmall'].includes(field)) return 'structure';
+  if (field === 'completionDate') return 'realization';
+  if (String(field || '').startsWith('branches.')) return 'rate';
+  return '';
+}
+
+function isFormSectionComplete(section, record) {
+  if (section === 'structure') return hasCompleteShootCounts(record);
+  if (section === 'realization') return !!record.completionDate;
+  if (section === 'rate') return false;
+  return false;
+}
+
+function autoCollapseCompletedSection(record, changedField) {
+  const section = formSectionForField(changedField);
+  if (!section || !isFormSectionComplete(section, record)) return;
+  state.formOpenSections = state.formOpenSections || {};
+  state.formOpenSections[section] = false;
+  const details = document.querySelector(`details[data-section="${section}"]`);
+  if (details) details.open = false;
 }
 
 
@@ -2217,10 +2315,10 @@ function renderForm(id) {
       const field = e.target.dataset.field;
       const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
       const mustRerender = field === 'completionDate';
-      updateRecordField(record.id, field, value, mustRerender);
+      updateRecordField(record.id, field, value, mustRerender, true);
     });
     if (el.type !== 'checkbox') {
-      el.addEventListener('input', debounce(e => updateRecordField(record.id, e.target.dataset.field, e.target.value, false), 180));
+      el.addEventListener('input', debounce(e => updateRecordField(record.id, e.target.dataset.field, e.target.value, false, false), 180));
     }
   });
   attachFormAccordionStateHandlers();
@@ -2322,6 +2420,7 @@ function openWorkloadDetailModal(week) {
       <div class="workload-detail-modal-header">
         <div>
           <h2 class="workload-detail-modal-title">Semaine ${escapeHtml(selected.week)}</h2>
+          ${selected.weekDateRange ? `<p class="workload-detail-modal-subtitle">${escapeHtml(selected.weekDateRange)}</p>` : ''}
           <p class="workload-detail-modal-subtitle">${escapeHtml(formatHours(selected.hours))} · ${selected.remaining} variété${selected.remaining > 1 ? 's' : ''} restante${selected.remaining > 1 ? 's' : ''}</p>
         </div>
         <button type="button" class="workload-detail-close" onclick="closeWorkloadDetailModal()" aria-label="Fermer le détail">×</button>
@@ -2414,7 +2513,8 @@ async function saveLocalData(show = false) {
     records: state.records,
     lastSavedAt: state.lastSavedAt,
     lastExportAt: state.lastExportAt,
-    customParcels: state.customParcels
+    customParcels: state.customParcels,
+    history: state.history
   };
   try {
     if (window.localforage) await localforage.setItem(APP_KEY, payload);
@@ -2437,6 +2537,7 @@ async function loadLocalData() {
       state.lastSavedAt = payload.lastSavedAt || null;
       state.lastExportAt = payload.lastExportAt || localStorage.getItem(EXPORT_DATE_KEY) || null;
       state.customParcels = Array.isArray(payload.customParcels) ? payload.customParcels : [];
+      state.history = Array.isArray(payload.history) ? payload.history : [];
     }
   } catch (err) {
     console.warn('Chargement local impossible', err);
@@ -2465,6 +2566,10 @@ function exportToExcel() {
   }));
   const wsWorkload = XLSX.utils.json_to_sheet(workloadRows);
   XLSX.utils.book_append_sheet(wb, wsWorkload, 'Synthèse hebdomadaire');
+  if (Array.isArray(state.history) && state.history.length) {
+    const wsHistory = XLSX.utils.json_to_sheet(state.history.map(historyToExportRow));
+    XLSX.utils.book_append_sheet(wb, wsHistory, 'Historique');
+  }
   const stamp = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `Suivi_eclaircissage_PN_${stamp}.xlsx`);
   state.lastExportAt = new Date().toISOString();
@@ -2543,6 +2648,67 @@ function parcelManagementRow(parcel, count) {
     <div class="parcel-row-actions">
       <button class="parcel-edit-btn" onclick="editParcelName('${escapeAttr(parcel)}')">Modifier</button>
       <button class="parcel-delete-btn" onclick="deleteParcelName('${escapeAttr(parcel)}')">Supprimer</button>
+    </div>
+  </div>`;
+}
+
+
+function renderHistory() {
+  lockViewportMobile();
+  state.currentView = 'history';
+  if (!Array.isArray(state.history)) state.history = [];
+  const q = normalizeKey(state.historySearch || '');
+  const years = unique(state.history.map(h => h.year).filter(Boolean)).sort((a,b) => Number(b) - Number(a));
+  let rows = [...state.history];
+  if (state.historyYearFilter) rows = rows.filter(h => String(h.year) === String(state.historyYearFilter));
+  if (q) rows = rows.filter(h => normalizeKey([h.variety, h.denomination, h.se, h.parcel, h.row, h.treeStart, h.treeEnd, h.year, h.class].join(' ')).includes(q));
+  rows.sort((a,b) => Number(b.year || 0) - Number(a.year || 0) || String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric:true, sensitivity:'base' }));
+  const summaries = getHistorySummaries();
+  app.innerHTML = layoutHeader('Historique', 'Données conservées d’une année sur l’autre', true) + `
+    <main class="content grid">
+      <section class="card manager-search-card">
+        <div class="searchbar"><input id="historySearchInput" type="search" placeholder="🔍 Rechercher variété, parcelle, année…" value="${escapeAttr(state.historySearch || '')}" /></div>
+        <div class="field" style="margin-top:10px"><label>Filtrer par année</label><select id="historyYearFilter"><option value="">Toutes les années</option>${years.map(y => `<option value="${escapeAttr(y)}" ${String(state.historyYearFilter)===String(y)?'selected':''}>${escapeHtml(y)}</option>`).join('')}</select></div>
+        <p class="manager-empty-hint">${rows.length} entrée(s) affichée(s) sur ${state.history.length}.</p>
+      </section>
+      <section class="card">
+        <h2 class="section-title">Résumé par variété</h2>
+        <div class="parcel-added-list">${summaries.length ? summaries.map(historySummaryRow).join('') : '<div class="empty">Aucun historique enregistré.</div>'}</div>
+      </section>
+      <section class="card">
+        <h2 class="section-title">Entrées annuelles</h2>
+        <div class="parcel-added-list">${rows.length ? rows.map(historyEntryRow).join('') : '<div class="empty">Aucune entrée ne correspond à la recherche.</div>'}</div>
+      </section>
+    </main>`;
+  document.getElementById('historySearchInput')?.addEventListener('input', e => {
+    state.historySearch = e.target.value;
+    renderHistory();
+    requestAnimationFrame(() => {
+      const input = document.getElementById('historySearchInput');
+      if (input) { input.focus(); const len = input.value.length; input.setSelectionRange?.(len, len); }
+    });
+  });
+  document.getElementById('historyYearFilter')?.addEventListener('change', e => { state.historyYearFilter = e.target.value; renderHistory(); });
+}
+
+function historySummaryRow(s) {
+  return `<div class="parcel-added-row">
+    <div><strong>${escapeHtml(s.variety || 'Sans variété')}</strong><div class="muted small">${escapeHtml(s.denomination || '')} ${s.years ? '· ' + s.years + ' année(s)' : ''}</div></div>
+    <div class="parcel-row-actions" style="justify-content:flex-end; flex-wrap:wrap">
+      <span class="pill blue">Maturité moy. ${escapeHtml(s.avgMaturityLabel || '—')}</span>
+      <span class="pill purple">Taux moy. ${s.avgRate !== '' ? escapeHtml(String(s.avgRate).replace('.', ',')) + ' %' : '—'}</span>
+    </div>
+  </div>`;
+}
+
+function historyEntryRow(h) {
+  return `<div class="parcel-added-row">
+    <div><strong>${escapeHtml(h.year || '—')} · ${escapeHtml(h.variety || 'Sans variété')}</strong><div class="muted small">${escapeHtml(h.parcel || '—')} · R${escapeHtml(h.row || '—')} · A${escapeHtml(h.treeStart || '—')}${h.treeEnd && String(h.treeEnd)!==String(h.treeStart)?'-'+escapeHtml(h.treeEnd):''}</div></div>
+    <div class="parcel-row-actions" style="justify-content:flex-end; flex-wrap:wrap">
+      ${h.maturityDate ? `<span class="pill gray">MAT ${escapeHtml(displayDate(h.maturityDate))}</span>` : ''}
+      ${h.rate !== '' && h.rate !== undefined ? `<span class="pill blue">${escapeHtml(String(h.rate).replace('.', ','))} %</span>` : ''}
+      ${h.class ? `<span class="pill purple">${escapeHtml(h.class)}</span>` : ''}
+      ${h.realLoad !== '' && h.realLoad !== undefined ? `<span class="pill green">${escapeHtml(h.realLoad)} fruits/arbre</span>` : ''}
     </div>
   </div>`;
 }
@@ -2906,6 +3072,7 @@ async function handleFileImport(event) {
     const imported = normalizeImportedWorkbook(workbook);
     if (!imported.length) return showToast('Aucune ligne exploitable détectée');
     const keep = state.records.length ? confirm('Remplacer les données actuelles par ce fichier importé ? Annuler = fusionner.') : true;
+    updateMaturityHistoryFromImported(imported);
     if (keep) state.records = imported;
     else state.records = mergeRecords(state.records, imported);
     await saveLocalData(false);
@@ -3011,7 +3178,9 @@ function recalculateRecord(record) {
   record.flat = isFlat(record);
   record.maturityDate = normalizeDate(record.maturityDate);
   record.maturityDay = getDayOfYear(record.maturityDate);
-  record.rawThinningDate = calculateRawThinningDate(record.maturityDate, record.flat) || record.importedThinningDate || '';
+  record.historicalMaturityDate = getHistoricalMaturityDate(record);
+  const maturityForThinning = record.historicalMaturityDate || record.maturityDate;
+  record.rawThinningDate = calculateRawThinningDate(maturityForThinning, record.flat) || record.importedThinningDate || '';
   record.correctedThinningDate = capThinningBeforeJuly(adjustWeekend(record.rawThinningDate) || record.importedThinningDate || '');
   record.thinningWeek = getExcelWeekNumberMonday(record.correctedThinningDate) || record.week || '';
   record.recommendedLoad = getRecommendedLoad(record.maturityDate, record.flat);
@@ -3037,12 +3206,13 @@ function finishThinning(id) {
   record.status = 'éclaircissage réalisé';
   record.lastModified = new Date().toISOString();
   recalculateRecord(record);
+  upsertThinningHistory(record);
   saveLocalData(false);
   showToast('Éclaircissage fini');
   renderList();
 }
 
-function updateRecordField(id, field, value, rerender = true) {
+function updateRecordField(id, field, value, rerender = true, autoCollapse = true) {
   const record = state.records.find(r => r.id === id);
   if (!record) return;
   if (field.startsWith('branches.')) {
@@ -3061,12 +3231,15 @@ function updateRecordField(id, field, value, rerender = true) {
     if (record.status === 'éclaircissage réalisé') record.status = 'à observer';
   }
   if (record.finished && !canFinishThinning(record)) {
+    removeCurrentYearHistory(record);
     record.finished = false;
     record.thinningFinished = false;
     if (record.status === 'éclaircissage réalisé') record.status = 'à observer';
   }
   record.lastModified = new Date().toISOString();
   recalculateRecord(record);
+  if (record.finished && canFinishThinning(record)) upsertThinningHistory(record);
+  if (autoCollapse) autoCollapseCompletedSection(record, field);
   saveLocalData(false);
   if (rerender) { rememberFormOpenSections(); renderForm(id); }
   else updateFinishStateUI(id);
@@ -3194,7 +3367,7 @@ function formHeader(record, done) {
         <div class="form-title-main">${escapeHtml(title)}</div>
         <div class="form-title-sub only-location">${escapeHtml(sub)}</div>
       </div>
-      <button class="icon-btn" onclick="renderHome()"><span>Menu</span></button>
+      <button class="icon-btn reset-form-btn" onclick="resetCurrentObservation('${record.id}')"><span>Réinit.</span></button>
     </div>
   </header>`;
 }
@@ -3254,8 +3427,8 @@ function rateSection(record, showInputs = true) {
         ${branchInputCompact('Gros', 'large', record)}
       ` : '<p class="muted small" style="margin:0">Renseigner d’abord la date de réalisation pour saisir le calcul du taux.</p>'}
       <div class="rate-essential-row">
-        ${chargeRealBox(record)}
         <button type="button" class="btn inline secondary" onclick="openEstimateDetailModal('${record.id}')">Détail</button>
+        ${chargeRealBox(record)}
       </div>
       ${record.hasInvalidCounts ? '<div class="alert-item">Alerte : les fruits après éclaircissage ne peuvent pas être supérieurs aux fruits avant.</div>' : ''}
     </div>
@@ -3552,6 +3725,206 @@ function recordToExportRow(r) {
     'divers': '',
     'dernière modification': r.lastModified
   };
+}
+
+
+function recordHistoryKey(record) {
+  return normalizeKey([record?.se, record?.variety, record?.denomination, record?.parcel || record?.group, record?.row, record?.treeStart, record?.treeEnd].join('|'));
+}
+
+function getObservationYear(record) {
+  const d = parseISODate(record?.completionDate) || parseISODate(todayISO());
+  return d ? d.getUTCFullYear() : new Date().getFullYear();
+}
+
+function getMaturityYear(record) {
+  const d = parseISODate(record?.maturityDate);
+  return d ? d.getUTCFullYear() : new Date().getFullYear();
+}
+
+function upsertHistoryEntry(entry) {
+  if (!Array.isArray(state.history)) state.history = [];
+  const key = String(entry.key || '');
+  const year = String(entry.year || '');
+  const idx = state.history.findIndex(h => String(h.key) === key && String(h.year) === year);
+  const clean = { ...(idx >= 0 ? state.history[idx] : {}), ...entry, updatedAt: new Date().toISOString() };
+  if (idx >= 0) state.history[idx] = clean;
+  else state.history.push(clean);
+}
+
+function upsertThinningHistory(record) {
+  if (!record || !canFinishThinning(record)) return;
+  const year = getObservationYear(record);
+  upsertHistoryEntry({
+    key: recordHistoryKey(record),
+    recordId: record.id,
+    year,
+    type: 'eclaircissage',
+    se: record.se || '',
+    variety: record.variety || '',
+    denomination: record.denomination || '',
+    parcel: record.parcel || record.group || '',
+    row: record.row || '',
+    treeStart: record.treeStart || '',
+    treeEnd: record.treeEnd || '',
+    treeCount: record.treeCount || '',
+    stoneHardeningDate: record.stoneHardeningDate || '',
+    completionDate: record.completionDate || '',
+    rate: record.calculatedRate !== '' ? record.calculatedRate : record.estimatedWeightedRate,
+    class: record.calculatedRateClass || record.estimatedRateClass || '',
+    realLoad: record.estimatedFruitAfterTree !== '' ? record.estimatedFruitAfterTree : '',
+    recommendedLoad: record.recommendedLoad || '',
+    shootLarge: record.shootLarge || '',
+    shootMedium: record.shootMedium || '',
+    shootSmall: record.shootSmall || '',
+    comment: record.comment || ''
+  });
+}
+
+function removeCurrentYearHistory(record) {
+  if (!Array.isArray(state.history) || !record) return;
+  const key = recordHistoryKey(record);
+  const year = String(getObservationYear(record));
+  state.history = state.history.filter(h => !(String(h.key) === key && String(h.year) === year));
+}
+
+function updateMaturityHistoryFromImported(records) {
+  if (!Array.isArray(records)) return;
+  records.forEach(r => {
+    if (!r || !r.maturityDate) return;
+    upsertHistoryEntry({
+      key: recordHistoryKey(r),
+      recordId: r.id,
+      year: getMaturityYear(r),
+      type: 'maturite',
+      se: r.se || '',
+      variety: r.variety || '',
+      denomination: r.denomination || '',
+      parcel: r.parcel || r.group || '',
+      row: r.row || '',
+      treeStart: r.treeStart || '',
+      treeEnd: r.treeEnd || '',
+      treeCount: r.treeCount || '',
+      maturityDate: r.maturityDate,
+      maturityDay: getDayOfYear(r.maturityDate)
+    });
+  });
+}
+
+function getHistoryEntriesForRecord(record) {
+  const key = recordHistoryKey(record);
+  return Array.isArray(state.history) ? state.history.filter(h => String(h.key) === key) : [];
+}
+
+function getHistoricalAverageMaturityDay(record) {
+  const days = getHistoryEntriesForRecord(record).map(h => Number(h.maturityDay || getDayOfYear(h.maturityDate))).filter(n => Number.isFinite(n) && n > 0);
+  if (!days.length) return '';
+  return Math.round(days.reduce((a,b) => a + b, 0) / days.length);
+}
+
+function dateFromDayOfYear(year, day) {
+  const d = new Date(Date.UTC(Number(year), 0, 1));
+  d.setUTCDate(Number(day));
+  return toISODate(d);
+}
+
+function getHistoricalMaturityDate(record) {
+  const day = getHistoricalAverageMaturityDay(record);
+  if (!day) return '';
+  const base = parseISODate(record?.maturityDate) || parseISODate(todayISO());
+  return dateFromDayOfYear(base.getUTCFullYear(), day);
+}
+
+function getHistoricalAverageRate(record) {
+  const rates = getHistoryEntriesForRecord(record).map(h => Number(h.rate)).filter(n => Number.isFinite(n));
+  if (!rates.length) return '';
+  return round1(rates.reduce((a,b) => a + b, 0) / rates.length);
+}
+
+function getHistoricalTimeCoefficient(record) {
+  const rate = getHistoricalAverageRate(record);
+  if (rate === '') return 1;
+  if (rate < 20) return 0.6;
+  if (rate < 33) return 0.8;
+  if (rate < 50) return 1.0;
+  if (rate < 66) return 1.2;
+  if (rate < 80) return 1.4;
+  return 1.6;
+}
+
+function getHistorySummaries() {
+  const map = new Map();
+  (state.history || []).forEach(h => {
+    const key = h.key || recordHistoryKey(h);
+    if (!map.has(key)) map.set(key, { key, variety: h.variety, denomination: h.denomination, yearsSet: new Set(), maturityDays: [], rates: [] });
+    const item = map.get(key);
+    if (h.year) item.yearsSet.add(String(h.year));
+    const day = Number(h.maturityDay || getDayOfYear(h.maturityDate));
+    if (Number.isFinite(day) && day > 0) item.maturityDays.push(day);
+    const rate = Number(h.rate);
+    if (Number.isFinite(rate)) item.rates.push(rate);
+  });
+  return [...map.values()].map(item => {
+    const avgDay = item.maturityDays.length ? Math.round(item.maturityDays.reduce((a,b)=>a+b,0) / item.maturityDays.length) : '';
+    return {
+      ...item,
+      years: item.yearsSet.size,
+      avgMaturityDay: avgDay,
+      avgMaturityLabel: avgDay ? displayDate(dateFromDayOfYear(new Date().getFullYear(), avgDay)).slice(0,5) : '',
+      avgRate: item.rates.length ? round1(item.rates.reduce((a,b)=>a+b,0) / item.rates.length) : ''
+    };
+  }).sort((a,b) => String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric:true, sensitivity:'base' }));
+}
+
+function historyToExportRow(h) {
+  return {
+    'année': h.year,
+    'type': h.type,
+    'SE': h.se,
+    'variété': h.variety,
+    'dénomination': h.denomination,
+    'parcelle': h.parcel,
+    'rang': h.row,
+    'arbre début': h.treeStart,
+    'arbre fin': h.treeEnd,
+    'nb arbres': h.treeCount,
+    'date maturité': h.maturityDate || '',
+    'jour maturité': h.maturityDay || '',
+    'date durcissement noyau': h.stoneHardeningDate || '',
+    'date réalisation': h.completionDate || '',
+    'taux éclaircissage': h.rate ?? '',
+    'classe éclaircissage': h.class || '',
+    'charge réelle': h.realLoad ?? '',
+    'charge conseillée': h.recommendedLoad ?? '',
+    'gros rameaux': h.shootLarge || '',
+    'rameaux moyens': h.shootMedium || '',
+    'petits rameaux': h.shootSmall || '',
+    'commentaire': h.comment || '',
+    'mise à jour': h.updatedAt || ''
+  };
+}
+
+function resetCurrentObservation(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  if (!confirm('Réinitialiser la saisie de cette variété pour l’année en cours ?')) return;
+  removeCurrentYearHistory(record);
+  record.shootLarge = '';
+  record.shootMedium = '';
+  record.shootSmall = '';
+  record.completionDate = '';
+  record.observationDate = '';
+  record.stoneHardeningDate = '';
+  record.branches = emptyBranches();
+  record.comment = '';
+  record.finished = false;
+  record.thinningFinished = false;
+  record.status = 'à observer';
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  saveLocalData(false);
+  showToast('Saisie réinitialisée');
+  renderForm(id);
 }
 
 function mergeRecords(oldRecords, newRecords) {
