@@ -1166,6 +1166,47 @@
       letter-spacing: .04em;
       font-weight: 900;
     }
+    .charge-real-box .charge-real-title {
+      font-weight: 1000;
+      letter-spacing: .06em;
+      line-height: 1.05;
+    }
+    .charge-real-box .charge-real-value {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.05;
+      min-width: 82px;
+    }
+    .charge-real-box .charge-real-number {
+      display: block;
+      font-weight: 900;
+      font-size: 17px;
+      line-height: 1.05;
+      color: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .charge-real-box .charge-real-unit {
+      display: block;
+      font-weight: 850;
+      font-size: 14px;
+      line-height: 1.05;
+      color: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+    .charge-real-box .charge-real-empty {
+      display: block;
+      font-size: 18px;
+      line-height: 1;
+      color: inherit;
+      text-transform: none;
+      letter-spacing: 0;
+    }
     .compact-main-name {
       font-weight: 650 !important;
       letter-spacing: -0.025em !important;
@@ -3452,8 +3493,8 @@ function getChargeRealStatus(realLoad, recommendedLoad) {
 function chargeRealBox(record) {
   const real = record.estimatedFruitAfterTree;
   const status = getChargeRealStatus(real, record.recommendedLoad);
-  const label = real !== '' ? `${real} fruits/arbre` : '—';
-  return `<div class="charge-advice-box charge-real-box ${status}" data-charge-real-box><span>Charge réelle</span><strong>${label}</strong></div>`;
+  const label = real !== '' ? `<span class="charge-real-number">${real}</span><span class="charge-real-unit">fruits/arbre</span>` : `<span class="charge-real-empty">—</span>`;
+  return `<div class="charge-advice-box charge-real-box ${status}" data-charge-real-box><span class="charge-real-title">Charge réelle</span><strong class="charge-real-value">${label}</strong></div>`;
 }
 
 function fruitTreeEstimateBlock(record) {
