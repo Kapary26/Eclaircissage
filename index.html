@@ -1329,6 +1329,14 @@
 .charge-real-box.neutral { background: var(--bg-app); border-color: var(--border-color); }
 @media (min-width: 700px) { .estimate-load-line { flex-direction: row; justify-content: space-between; align-items: center; } }
 
+
+.history-edit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 </style>
 </head>
 <body>
@@ -1412,6 +1420,8 @@ let state = {
   history: [],
   historySearch: '',
   historyYearFilter: '',
+  historyEditKey: null,
+  historyEditYear: null,
   lastSavedAt: null,
   lastExportAt: null,
   storageMode: 'localStorage'
@@ -2698,27 +2708,65 @@ function renderHistory() {
   lockViewportMobile();
   state.currentView = 'history';
   if (!Array.isArray(state.history)) state.history = [];
+  if (!Array.isArray(state.records)) state.records = [];
+
+  const editEntry = getHistoryEditEntry();
+  const selectedRecord = editEntry ? findRecordForHistoryEntry(editEntry) : null;
+  const selectedRecordId = selectedRecord?.id || '';
+  const recordOptions = sortVarietiesForThinning([...(state.records || [])]).map(r => {
+    const label = `${r.variety || 'Sans variété'}${r.denomination ? ' · ' + r.denomination : ''} · ${r.parcel || r.group || 'Sans parcelle'} · ${formatTreePosition(r)}`;
+    return `<option value="${escapeAttr(r.id)}" ${String(selectedRecordId) === String(r.id) ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+
+  const editRate = editEntry && editEntry.rate !== undefined && editEntry.rate !== null && editEntry.rate !== '' ? String(editEntry.rate).replace('.', ',') : '';
+  const editYear = editEntry?.year || new Date().getFullYear();
   const q = normalizeKey(state.historySearch || '');
   const years = unique(state.history.map(h => h.year).filter(Boolean)).sort((a,b) => Number(b) - Number(a));
   let rows = [...state.history];
   if (state.historyYearFilter) rows = rows.filter(h => String(h.year) === String(state.historyYearFilter));
-  if (q) rows = rows.filter(h => normalizeKey([h.variety, h.denomination, h.se, h.parcel, h.row, h.treeStart, h.treeEnd, h.year, h.class].join(' ')).includes(q));
+  if (q) rows = rows.filter(h => normalizeKey([h.variety, h.denomination, h.se, h.parcel, h.row, h.treeStart, h.treeEnd, h.year, h.class, h.rate, h.maturityDate].join(' ')).includes(q));
   rows.sort((a,b) => Number(b.year || 0) - Number(a.year || 0) || String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric:true, sensitivity:'base' }));
-  const summaries = getHistorySummaries();
+  const summaries = getHistorySummaries(rows);
+  const formTitle = editEntry ? 'Modifier l’historique de la variété' : 'Ajouter une donnée historique';
+  const formButton = editEntry ? 'Enregistrer la modification' : 'Ajouter l’historique';
+  const editSummary = editEntry ? getHistorySummaryForKey(editEntry.key) : null;
+  const editYears = editEntry ? unique((state.history || []).filter(h => String(h.key) === String(editEntry.key)).map(h => h.year).filter(Boolean)).sort((a,b) => Number(b) - Number(a)) : [];
+  const yearField = editEntry
+    ? `<select id="historyYearInput" required>${editYears.map(y => `<option value="${escapeAttr(y)}" ${String(y) === String(editYear) ? 'selected' : ''}>${escapeHtml(y)}</option>`).join('')}</select>`
+    : `<input id="historyYearInput" type="number" inputmode="numeric" min="2000" max="2100" placeholder="Ex. 2025" value="${escapeAttr(editYear)}" required>`;
+  const editStatsHtml = editSummary ? `<div class="history-edit-summary">
+      <span class="pill blue">Maturité moyenne : ${escapeHtml(editSummary.avgMaturityLabel || '—')}</span>
+      <span class="pill purple">Taux moyen : ${editSummary.avgRate !== '' ? escapeHtml(String(editSummary.avgRate).replace('.', ',')) + ' %' : '—'}</span>
+      <span class="pill gray">${escapeHtml(editSummary.years || 0)} année(s)</span>
+    </div>` : '';
+
   app.innerHTML = layoutHeader('Historique', 'Données conservées d’une année sur l’autre', true) + `
     <main class="content grid">
+      <details class="card collapsible" ${editEntry ? 'open' : ''}>
+        <summary>${formTitle}</summary>
+        <div class="collapsible-body">
+          ${editStatsHtml}
+          <div class="parcel-add-grid">
+            <div class="field full"><label>Variété</label><select id="historyRecordSelect" required ${editEntry ? 'disabled' : ''}><option value="">Choisir une variété…</option>${recordOptions}</select></div>
+            <div class="field"><label>Année</label>${yearField}</div>
+            <div class="field"><label>Date de maturité</label><input id="historyMaturityInput" type="date" value="${escapeAttr(editEntry?.maturityDate || '')}"></div>
+            <div class="field"><label>Taux éclaircissage (%)</label><input id="historyRateInput" type="number" inputmode="decimal" min="0" max="100" step="0.1" placeholder="Ex. 55,6" value="${escapeAttr(editRate)}"></div>
+            <div class="field full"><label>Commentaire historique</label><textarea id="historyCommentInput" rows="3" placeholder="Note ou source de la donnée…">${escapeHtml(editEntry?.comment || '')}</textarea></div>
+          </div>
+          <button class="btn primary full" style="margin-top:14px" onclick="saveManualHistoryEntry()">${formButton}</button>
+          ${editEntry ? '<button class="parcel-cancel-edit-btn" type="button" onclick="cancelHistoryEdit()">Annuler la modification</button>' : ''}
+          <p class="manager-empty-hint">La date de maturité et le taux peuvent être saisis ensemble ou séparément. La classe est recalculée automatiquement à partir du taux.</p>
+        </div>
+      </details>
+
       <section class="card manager-search-card">
         <div class="searchbar"><input id="historySearchInput" type="search" placeholder="🔍 Rechercher variété, parcelle, année…" value="${escapeAttr(state.historySearch || '')}" /></div>
         <div class="field" style="margin-top:10px"><label>Filtrer par année</label><select id="historyYearFilter"><option value="">Toutes les années</option>${years.map(y => `<option value="${escapeAttr(y)}" ${String(state.historyYearFilter)===String(y)?'selected':''}>${escapeHtml(y)}</option>`).join('')}</select></div>
-        <p class="manager-empty-hint">${rows.length} entrée(s) affichée(s) sur ${state.history.length}.</p>
+        <p class="manager-empty-hint">${summaries.length} variété(s) affichée(s) · ${rows.length} donnée(s) historique(s).</p>
       </section>
       <section class="card">
         <h2 class="section-title">Résumé par variété</h2>
         <div class="parcel-added-list">${summaries.length ? summaries.map(historySummaryRow).join('') : '<div class="empty">Aucun historique enregistré.</div>'}</div>
-      </section>
-      <section class="card">
-        <h2 class="section-title">Entrées annuelles</h2>
-        <div class="parcel-added-list">${rows.length ? rows.map(historyEntryRow).join('') : '<div class="empty">Aucune entrée ne correspond à la recherche.</div>'}</div>
       </section>
     </main>`;
   document.getElementById('historySearchInput')?.addEventListener('input', e => {
@@ -2730,19 +2778,43 @@ function renderHistory() {
     });
   });
   document.getElementById('historyYearFilter')?.addEventListener('change', e => { state.historyYearFilter = e.target.value; renderHistory(); });
+  if (editEntry) {
+    document.getElementById('historyYearInput')?.addEventListener('change', e => {
+      state.historyEditYear = String(e.target.value || '');
+      renderHistory();
+    });
+  }
+}
+
+function getHistoryEditEntry() {
+  if (!state.historyEditKey || !state.historyEditYear) return null;
+  return (state.history || []).find(h => String(h.key) === String(state.historyEditKey) && String(h.year) === String(state.historyEditYear)) || null;
+}
+
+function findRecordForHistoryEntry(entry) {
+  if (!entry) return null;
+  if (entry.recordId) {
+    const byId = (state.records || []).find(r => String(r.id) === String(entry.recordId));
+    if (byId) return byId;
+  }
+  const key = String(entry.key || '');
+  return (state.records || []).find(r => String(recordHistoryKey(r)) === key) || null;
 }
 
 function historySummaryRow(s) {
+  const key = escapeAttr(s.key || '');
   return `<div class="parcel-added-row">
-    <div><strong>${escapeHtml(s.variety || 'Sans variété')}</strong><div class="muted small">${escapeHtml(s.denomination || '')} ${s.years ? '· ' + s.years + ' année(s)' : ''}</div></div>
+    <div><strong>${escapeHtml(s.variety || 'Sans variété')}</strong><div class="muted small">${escapeHtml(s.denomination || '')}${s.denomination ? ' · ' : ''}${escapeHtml(s.years || 0)} année(s) enregistrée(s)</div></div>
     <div class="parcel-row-actions" style="justify-content:flex-end; flex-wrap:wrap">
-      <span class="pill blue">Maturité moy. ${escapeHtml(s.avgMaturityLabel || '—')}</span>
-      <span class="pill purple">Taux moy. ${s.avgRate !== '' ? escapeHtml(String(s.avgRate).replace('.', ',')) + ' %' : '—'}</span>
+      <button class="parcel-edit-btn" onclick="editHistorySummary('${key}')">Modifier</button>
+      <button class="parcel-delete-btn" onclick="deleteHistorySummary('${key}')">Supprimer</button>
     </div>
   </div>`;
 }
 
 function historyEntryRow(h) {
+  const key = escapeAttr(h.key || '');
+  const year = escapeAttr(h.year || '');
   return `<div class="parcel-added-row">
     <div><strong>${escapeHtml(h.year || '—')} · ${escapeHtml(h.variety || 'Sans variété')}</strong><div class="muted small">${escapeHtml(h.parcel || '—')} · R${escapeHtml(h.row || '—')} · A${escapeHtml(h.treeStart || '—')}${h.treeEnd && String(h.treeEnd)!==String(h.treeStart)?'-'+escapeHtml(h.treeEnd):''}</div></div>
     <div class="parcel-row-actions" style="justify-content:flex-end; flex-wrap:wrap">
@@ -2750,8 +2822,109 @@ function historyEntryRow(h) {
       ${h.rate !== '' && h.rate !== undefined ? `<span class="pill blue">${escapeHtml(String(h.rate).replace('.', ','))} %</span>` : ''}
       ${h.class ? `<span class="pill purple">${escapeHtml(h.class)}</span>` : ''}
       ${h.realLoad !== '' && h.realLoad !== undefined ? `<span class="pill green">${escapeHtml(h.realLoad)} fruits/arbre</span>` : ''}
+      <button class="parcel-edit-btn" onclick="editHistoryEntry('${key}', '${year}')">Modifier</button>
+      <button class="parcel-delete-btn" onclick="deleteHistoryEntry('${key}', '${year}')">Supprimer</button>
     </div>
   </div>`;
+}
+
+async function saveManualHistoryEntry() {
+  const recordId = String(document.getElementById('historyRecordSelect')?.value || '').trim();
+  const record = (state.records || []).find(r => String(r.id) === recordId);
+  if (!record) return showToast('Choisir une variété');
+
+  const year = String(document.getElementById('historyYearInput')?.value || '').trim();
+  const yearNum = Number(year);
+  if (!year || !Number.isInteger(yearNum) || yearNum < 2000 || yearNum > 2100) return showToast('Année invalide');
+
+  const maturityDate = normalizeDate(document.getElementById('historyMaturityInput')?.value || '');
+  const rateRaw = String(document.getElementById('historyRateInput')?.value || '').replace(',', '.').trim();
+  const hasRate = rateRaw !== '';
+  const rateNum = hasRate ? Number(rateRaw) : '';
+  if (hasRate && (!Number.isFinite(rateNum) || rateNum < 0 || rateNum > 100)) return showToast('Taux invalide');
+  if (!maturityDate && !hasRate) return showToast('Saisir une maturité ou un taux');
+
+  const comment = String(document.getElementById('historyCommentInput')?.value || '').trim();
+  const key = recordHistoryKey(record);
+  const current = (state.history || []).find(h => String(h.key) === String(key) && String(h.year) === String(year));
+
+  upsertHistoryEntry({
+    key,
+    recordId: record.id,
+    year,
+    type: current?.type && current.type !== 'maturite' ? current.type : 'manuel',
+    se: record.se || '',
+    variety: record.variety || '',
+    denomination: record.denomination || '',
+    parcel: record.parcel || record.group || '',
+    row: record.row || '',
+    treeStart: record.treeStart || '',
+    treeEnd: record.treeEnd || '',
+    treeCount: record.treeCount || '',
+    maturityDate: maturityDate || '',
+    maturityDay: maturityDate ? getDayOfYear(maturityDate) : '',
+    rate: hasRate ? round1(rateNum) : '',
+    class: hasRate ? getThinningClass(rateNum) : '',
+    comment
+  });
+
+  state.historyEditKey = null;
+  state.historyEditYear = null;
+  await saveLocalData(false);
+  showToast(current ? 'Historique mis à jour' : 'Historique ajouté');
+  renderHistory();
+}
+
+function editHistoryEntry(key, year) {
+  state.historyEditKey = key;
+  state.historyEditYear = String(year || '');
+  renderHistory();
+  setTimeout(() => document.getElementById('historyYearInput')?.focus(), 50);
+}
+
+function editHistorySummary(key) {
+  const entries = (state.history || []).filter(h => String(h.key) === String(key));
+  if (!entries.length) return showToast('Historique introuvable');
+  entries.sort((a,b) => Number(b.year || 0) - Number(a.year || 0));
+  state.historyEditKey = key;
+  state.historyEditYear = String(entries[0].year || '');
+  renderHistory();
+  setTimeout(() => document.getElementById('historyYearInput')?.focus(), 50);
+}
+
+async function deleteHistorySummary(key) {
+  const entries = (state.history || []).filter(h => String(h.key) === String(key));
+  if (!entries.length) return showToast('Historique introuvable');
+  const name = entries[0].variety || 'cette variété';
+  if (!confirm(`Supprimer tout l’historique de ${name} (${entries.length} année(s)) ?`)) return;
+  state.history = (state.history || []).filter(h => String(h.key) !== String(key));
+  if (String(state.historyEditKey) === String(key)) {
+    state.historyEditKey = null;
+    state.historyEditYear = null;
+  }
+  await saveLocalData(false);
+  showToast('Historique supprimé');
+  renderHistory();
+}
+
+function cancelHistoryEdit() {
+  state.historyEditKey = null;
+  state.historyEditYear = null;
+  renderHistory();
+}
+
+async function deleteHistoryEntry(key, year) {
+  const entry = (state.history || []).find(h => String(h.key) === String(key) && String(h.year) === String(year));
+  if (!entry) return showToast('Historique introuvable');
+  if (!confirm(`Supprimer l’historique ${entry.year || ''} de ${entry.variety || 'cette variété'} ?`)) return;
+  state.history = (state.history || []).filter(h => !(String(h.key) === String(key) && String(h.year) === String(year)));
+  if (String(state.historyEditKey) === String(key) && String(state.historyEditYear) === String(year)) {
+    state.historyEditKey = null;
+    state.historyEditYear = null;
+  }
+  await saveLocalData(false);
+  showToast('Historique supprimé');
+  renderHistory();
 }
 
 function renderTreesManagement() {
@@ -3893,9 +4066,9 @@ function getHistoricalTimeCoefficient(record) {
   return 1.6;
 }
 
-function getHistorySummaries() {
+function getHistorySummaries(sourceRows) {
   const map = new Map();
-  (state.history || []).forEach(h => {
+  (sourceRows || state.history || []).forEach(h => {
     const key = h.key || recordHistoryKey(h);
     if (!map.has(key)) map.set(key, { key, variety: h.variety, denomination: h.denomination, yearsSet: new Set(), maturityDays: [], rates: [] });
     const item = map.get(key);
@@ -3915,6 +4088,10 @@ function getHistorySummaries() {
       avgRate: item.rates.length ? round1(item.rates.reduce((a,b)=>a+b,0) / item.rates.length) : ''
     };
   }).sort((a,b) => String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric:true, sensitivity:'base' }));
+}
+
+function getHistorySummaryForKey(key) {
+  return getHistorySummaries((state.history || []).filter(h => String(h.key) === String(key)))[0] || null;
 }
 
 function historyToExportRow(h) {
