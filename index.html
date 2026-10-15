@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Suivi éclaircissage P&N v23</title>
+  <title>Suivi éclaircissage & taille P&N v24</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
   <style>
@@ -1338,6 +1338,249 @@
 }
 
 </style>
+  <style id="pruning-style">
+    /* ===== v24 - Module Taille (consignes piquets + comptage rameaux) ===== */
+    .prune-summary { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+    @media (min-width: 700px) { .prune-summary { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+    .prune-summary-item {
+      display: flex; align-items: center; gap: 9px; text-align: left;
+      border: 1px solid var(--line); background: var(--card); color: var(--text);
+      border-radius: 14px; padding: 10px; min-height: 56px;
+    }
+    .prune-summary-item.active { border-color: var(--blue); box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 22%, transparent); }
+    .prune-summary-text { min-width: 0; }
+    .prune-summary-label { font-size: 13px; font-weight: 850; line-height: 1.1; }
+    .prune-summary-value { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+    .prune-dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(120,120,128,.55); flex: 0 0 auto; }
+    .prune-dot.lg { width: 26px; height: 26px; }
+    .prune-dot.sm { width: 13px; height: 13px; }
+
+    .prune-list { display: grid; gap: 8px; margin-top: 12px; }
+    .prune-group-title {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin: 6px 2px 0; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--text-2);
+    }
+    .prune-group-title:first-child { margin-top: 0; }
+
+    .prework-toggle {
+      display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px;
+      border: 1px dashed var(--line); border-radius: 14px; padding: 11px 12px; min-height: 50px;
+      background: transparent; color: var(--text-2); text-align: left;
+    }
+    .prework-toggle.active {
+      border-style: solid; border-color: var(--orange);
+      background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--text);
+    }
+    .prework-emoji { font-size: 20px; line-height: 1; filter: grayscale(1); opacity: .5; }
+    .prework-toggle.active .prework-emoji { filter: none; opacity: 1; }
+    .prework-text { flex: 1; min-width: 0; font-size: 14px; font-weight: 850; }
+    .prework-state { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+    .prework-badge { margin-left: 6px; font-size: 14px; }
+
+    .filter-icon-btn {
+      position: relative; flex: 0 0 auto; width: 48px; min-height: 46px;
+      border: 1px solid var(--line); background: var(--card); border-radius: 12px;
+      font-size: 20px; line-height: 1;
+    }
+
+    .filter-label { margin: 14px 0 6px; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
+    .filter-label:first-of-type { margin-top: 4px; }
+    .filter-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+    .filter-seg-btn {
+      display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px;
+      border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text);
+      font-size: 13px; font-weight: 800;
+    }
+    .filter-seg-btn.active { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, var(--card)); }
+    .filter-select {
+      width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 12px;
+      background: var(--card); color: var(--text); padding: 10px 12px; font-size: 15px; font-weight: 700;
+    }
+
+    /* Sélection multiple accessible sur écran mobile : parcelles et maturités. */
+    .filter-multi-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .filter-multi-heading .filter-label { margin-bottom: 6px; }
+    .filter-multi-count { color: var(--text-2); font-size: 12px; font-weight: 750; white-space: nowrap; }
+    .filter-multi-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .filter-multi-actions button { border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--blue); min-height: 38px; padding: 7px 10px; font-size: 12px; font-weight: 800; }
+    .filter-multi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: 180px; overflow-y: auto; padding: 3px; -webkit-overflow-scrolling: touch; }
+    .filter-multi-option { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; min-width: 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+    .filter-multi-option.is-checked { border-color: color-mix(in srgb, var(--blue) 55%, var(--line)); background: color-mix(in srgb, var(--blue) 9%, var(--card)); }
+    .filter-multi-option input[type="checkbox"] { width: 21px; height: 21px; margin: 0; flex: 0 0 21px; accent-color: var(--blue); }
+    @media (max-width: 360px) { .filter-multi-grid { grid-template-columns: 1fr; } }
+
+    .prune-row {
+      display: grid; grid-template-columns: 8px minmax(0,1fr) auto; align-items: center; gap: 10px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 0 12px 0 0; overflow: hidden; min-height: 64px;
+    }
+    .prune-row:active { transform: scale(0.985); }
+    .prune-row.done { opacity: .78; }
+    .prune-stripe { display: block; align-self: stretch; background: rgba(142,142,147,.35); }
+    .prune-main { padding: 10px 0; min-width: 0; }
+    .prune-name { font-size: 17px; font-weight: 850; letter-spacing: -0.01em; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .prune-sub { margin-top: 3px; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .prune-check { color: var(--green); margin-left: 6px; }
+    .prune-type-chip {
+      border: 1px solid rgba(120,120,128,.45); border-radius: 999px; padding: 7px 11px;
+      font-size: 12px; font-weight: 900; min-height: 38px; white-space: nowrap;
+      max-width: 118px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .prune-edit-btn {
+      border: 1px solid var(--line); background: var(--card); color: var(--blue);
+      border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 800; min-height: 36px; white-space: nowrap;
+    }
+    .prune-color-taken { display: block; font-size: 20px; line-height: 1; color: rgba(0,0,0,.45); }
+
+    .section-toggle {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+      min-width: 0; padding: 6px 12px; border-radius: 14px;
+      border: 1px solid var(--line); background: color-mix(in srgb, var(--blue) 9%, var(--card));
+      color: var(--text); text-align: center;
+    }
+    .section-toggle:active { transform: scale(0.97); background: color-mix(in srgb, var(--blue) 16%, var(--card)); }
+    .section-toggle-title {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 17px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap;
+    }
+    .section-toggle-icon { color: var(--blue); font-size: 15px; font-weight: 900; }
+    .section-toggle-sub { font-size: 11px; color: var(--text-2); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .section-toggle-hint { font-size: 10px; font-weight: 800; color: var(--blue); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+    @media (max-width: 380px) {
+      .section-toggle { padding: 5px 8px; }
+      .section-toggle-title { font-size: 15px; }
+      .section-toggle-hint { display: none; }
+    }
+    .parcel-import-btn {
+      border: 1px solid var(--line); background: var(--card); color: var(--blue);
+      border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 800; min-height: 36px; white-space: nowrap;
+    }
+    .variety-list { display: grid; gap: 10px; }
+    .variety-card { border: 1px solid var(--line); border-radius: 15px; padding: 12px; background: var(--card); }
+    .variety-head { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; gap: 10px; align-items: start; }
+    .variety-head-text { min-width: 0; }
+    /* Gestion explicite de la suppression des variétés depuis la base variétale. */
+    .variety-delete-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+    .variety-danger-info { border: 1px solid color-mix(in srgb, var(--red) 38%, var(--line)); background: color-mix(in srgb, var(--red) 8%, var(--card)); color: var(--text); border-radius: 13px; padding: 12px; font-size: 13px; line-height: 1.4; margin: 12px 0; }
+    .variety-danger-info strong { color: var(--red); }
+    .variety-deletion-confirm { margin-top: 12px; }
+    .variety-deletion-confirm label { display: block; font-weight: 800; font-size: 13px; margin-bottom: 6px; }
+    .variety-deletion-confirm input { width: 100%; min-height: 48px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .variety-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+    .variety-delete-actions .btn { min-height: 48px; font-size: 14px; padding: 10px; }
+    .variety-delete-actions .btn.red { background: var(--red); }
+    .planting-list { margin-top: 10px; display: grid; gap: 6px; }
+    .planting-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: center; background: rgba(142,142,147,.12); border-radius: 12px; padding: 8px 10px; }
+    .planting-info { min-width: 0; }
+    .planting-parcel { font-size: 14px; font-weight: 850; }
+    .planting-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+    .planting-empty { font-size: 12px; color: var(--text-2); padding: 8px 10px; border: 1px dashed var(--line); border-radius: 12px; }
+    .planting-add-btn { margin-top: 10px; min-height: 42px; }
+    @media (max-width: 430px) {
+      .variety-head { grid-template-columns: 44px minmax(0,1fr); }
+      .variety-head .parcel-row-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; }
+      .planting-row { grid-template-columns: minmax(0,1fr); }
+      .planting-row .parcel-row-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    }
+    .plan-match-box { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: color-mix(in srgb, var(--blue) 7%, transparent); }
+    .plan-match-title { font-size: 13px; font-weight: 900; margin-bottom: 6px; }
+    .plan-match-line { font-size: 13px; color: var(--text-2); }
+    .plan-match-summary { font-size: 12px; font-weight: 800; color: var(--blue); cursor: pointer; padding: 6px 0; }
+    .plan-issue { font-size: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+    .plan-issue:last-child { border-bottom: 0; }
+    .plan-preview-table { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+    .plan-preview-head, .plan-preview-row { display: grid; grid-template-columns: 46px minmax(0,1fr) 96px 40px; gap: 6px; align-items: center; }
+    .plan-preview-head { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+    .plan-preview-row { font-size: 12px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+    .plan-preview-row:last-child { border-bottom: 0; }
+    .plan-preview-row > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 430px) {
+      .parcel-management-row .parcel-row-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+      .parcel-import-btn { width: 100%; padding: 7px 6px; }
+      .plan-preview-head, .plan-preview-row { grid-template-columns: 40px minmax(0,1fr) 84px 34px; }
+    }
+
+    .prune-type-grid { display: grid; gap: 9px; grid-template-columns: 1fr; }
+    .prune-type-btn {
+      display: flex; align-items: center; gap: 11px; text-align: left;
+      border: 2px solid var(--line); background: var(--card); color: var(--text);
+      border-radius: 15px; padding: 12px; min-height: 62px; width: 100%;
+    }
+    .prune-type-btn.active { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 8%, var(--card)); }
+    .prune-type-title { font-size: 15px; font-weight: 850; line-height: 1.15; }
+    .prune-type-hint { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+    .prune-badge {
+      display: inline-flex; align-items: center; gap: 8px; border-radius: 14px;
+      padding: 12px 14px; font-weight: 900; font-size: 16px; width: 100%;
+      border: 1px solid rgba(120,120,128,.45);
+    }
+    .prune-badge.empty { background: rgba(142,142,147,.16); color: var(--text-2); }
+
+    .prune-sheet-overlay {
+      position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.42);
+      display: flex; align-items: flex-end; justify-content: center; padding: 0;
+    }
+    .prune-sheet {
+      width: 100%; max-width: 560px; background: var(--bg); border-radius: 20px 20px 0 0;
+      padding: 16px 14px calc(20px + var(--safe-bottom)); max-height: 88vh; overflow: auto;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.28);
+    }
+    .prune-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .prune-sheet-title { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
+
+
+    /* Attribution groupée des consignes de taille : interface mobile */
+    .prune-bulk-entry { width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px; margin: 12px 0 4px; }
+    .prune-bulk-entry .bulk-symbol { font-size: 18px; line-height: 1; }
+    .prune-bulk-filters { font-size: 12px; line-height: 1.4; padding: 10px 12px; border-radius: 12px; background: rgba(142,142,147,.12); color: var(--text-2); }
+    .prune-bulk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .prune-bulk-list { display: grid; gap: 7px; max-height: min(39vh, 360px); overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 12px 0; }
+    .prune-bulk-row { display: flex; align-items: center; gap: 10px; padding: 11px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; }
+    .prune-bulk-row input { width: 21px; height: 21px; flex: 0 0 auto; accent-color: var(--blue); }
+    .prune-bulk-detail { display: block; flex: 1 1 auto; min-width: 0; }
+    .prune-bulk-name { display: block; font-weight: 850; font-size: 14px; overflow-wrap: anywhere; }
+    .prune-bulk-meta { display: block; color: var(--text-2); font-size: 12px; margin-top: 3px; }
+    .prune-bulk-count { font-size: 13px; font-weight: 800; margin: 12px 0 7px; }
+    .prune-bulk-footnote { color: var(--text-2); font-size: 12px; line-height: 1.4; margin: 10px 0 0; }
+
+    .prune-count-head { display: grid; grid-template-columns: minmax(90px,1fr) 96px; gap: 8px; padding: 0 6px; margin-bottom: 6px; color: var(--text-2); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+    .prune-count-head div:last-child { text-align: center; }
+    .prune-count-row { display: grid; grid-template-columns: minmax(90px,1fr) 96px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .prune-count-label { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; }
+    .prune-count-row input { width: 100%; text-align: center; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 12px; padding: 12px 6px; font-weight: 800; }
+
+    .prune-total-box { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; border-radius: 14px; padding: 12px; background: rgba(142,142,147,.14); }
+    .prune-total-label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
+    .prune-total-value { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; }
+
+    .prune-legend-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .prune-legend-row:last-child { border-bottom: 0; }
+    .prune-legend-text { flex: 1; min-width: 0; }
+    .prune-legend-title { font-weight: 850; font-size: 14px; }
+    .prune-legend-sub { font-size: 12px; color: var(--text-2); }
+    .prune-color-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .prune-color-choice { width: 40px; height: 40px; border-radius: 12px; border: 2px solid var(--line); }
+    .prune-color-choice.active { border-color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 25%, transparent); }
+
+    .prune-parcel-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 16px; }
+    .prune-group { margin: 10px 0 0; }
+    .prune-group-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 900; margin-bottom: 6px; }
+    .prune-instruction-item { display: grid; grid-template-columns: 13px minmax(0,1fr) auto; gap: 9px; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+    .prune-instruction-item:last-child { border-bottom: 0; }
+    .prune-instruction-pos { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+    .prune-note { font-size: 12px; color: var(--text-2); margin: 8px 0 0; }
+
+    @media print {
+      body { background: #fff; }
+      .topbar, .prune-noprint, .toast { display: none !important; }
+      .content { padding: 0; }
+      .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+      .prune-instruction-item { font-size: 12px; }
+    }
+  </style>
 </head>
 <body>
   <div id="app" class="app"></div>
@@ -1373,12 +1616,30 @@ const STATUS = [
 
 const SE_OPTIONS = ['NJ', 'PB', 'PJ', 'NS', 'NB', 'PBPL', 'NBPL'];
 
+/** Créneaux de maturité utilisés dans les listes, filtres et statistiques.
+ *  Bornes au format MMJJ, pour des limites stables même les années bissextiles. */
 const MATURITY_CLASSES = [
-  { id: 1, label: 'Très précoces', source: 'Muy precoces', period: 'mai', min: 91, max: 151, caliber: 'B', weight: 130, production: 25, roundLoad: 30, flatLoad: 45 },
-  { id: 2, label: 'Précoces / semi-précoces', source: 'Precoces / semi-precoces', period: 'juin', min: 152, max: 181, caliber: 'B-A / A-B', weight: 165, production: 40, roundLoad: 35, flatLoad: 55 },
-  { id: 3, label: 'Pleine saison', source: 'Plena temporada', period: 'juillet-août', min: 182, max: 243, caliber: 'A-2A', weight: 190, production: 47.5, roundLoad: 40, flatLoad: 65 },
-  { id: 4, label: 'Tardives à très tardives', source: 'Tardías a muy tardías', period: 'septembre-octobre', min: 244, max: 305, caliber: '2A-A', weight: 195, production: 55, roundLoad: 45, flatLoad: 70 }
+  { id: 1, label: 'Précoces', period: '1er avril au 20 juin', start: 401, end: 620 },
+  { id: 2, label: 'Saison', period: '21 juin au 31 juillet', start: 621, end: 731 },
+  { id: 3, label: 'Tardive', period: '1er août au 31 décembre', start: 801, end: 1231 }
 ];
+
+/** Conservation des paramètres agronomiques historiques. Ils ne sont PAS modifiés
+ *  par le nouveau découpage d'affichage, en attente d'une éventuelle recalibration. */
+const AGRONOMIC_ESTIMATE_CLASSES = [
+  { min: 91, max: 151, roundLoad: 30, flatLoad: 45, stoneOffset: 37 },
+  { min: 152, max: 181, roundLoad: 35, flatLoad: 55, stoneOffset: 37 },
+  { min: 182, max: 243, roundLoad: 40, flatLoad: 65, stoneOffset: 52 },
+  { min: 244, max: 305, roundLoad: 45, flatLoad: 70, stoneOffset: 70 }
+];
+
+/** Correspondance pour les filtres enregistrés avec les anciens libellés. */
+const LEGACY_MATURITY_LABELS = {
+  'Très précoces': 'Précoces',
+  'Précoces / semi-précoces': 'Précoces',
+  'Pleine saison': 'Saison',
+  'Tardives à très tardives': 'Tardive'
+};
 
 const COLUMN_ALIASES = {
   parcel: ['parcelle', 'bloc', 'groupe', 'feuille'],
@@ -1386,6 +1647,7 @@ const COLUMN_ALIASES = {
   variety: ['variete', 'variété', 'cultivar', 'reference', 'référence'],
   denomination: ['denomination', 'dénomination', 'nom commercial'],
   clone: ['clone'],
+  protection: ['protection', 'obtention', 'cov', 'statut protection'],
   row: ['rang', 'row'],
   treeStart: ['arbre de debut', 'arbre début', 'debut', 'début', 'start tree'],
   treeEnd: ['arbre de fin', 'fin', 'end tree', 'arbre fin'],
@@ -1422,6 +1684,17 @@ let state = {
   historyYearFilter: '',
   historyEditKey: null,
   historyEditYear: null,
+  pruningSearch: '',
+  pruningFilter: 'Toutes',
+  filters: { parcels: null, maturities: null, shape: '', preWork: '', pruningType: '', week: '' },
+  pruningColors: { small: '#ffd60a', medium: '#007aff', large: '#ff3b30', mixed: '#34c759' },
+  pruningTypes: [],
+  pruningTypeDraft: null,
+  parcelPlanTarget: null,
+  parcelPlanPreview: null,
+  varieties: [],
+  varietyEditId: null,
+  activeSection: 'thinning',
   lastSavedAt: null,
   lastExportAt: null,
   storageMode: 'localStorage'
@@ -1464,7 +1737,8 @@ async function initApp() {
     state.storageMode = 'localForage';
   }
   await loadLocalData();
-  renderList();
+  if (state.activeSection === 'pruning') renderPruningList();
+  else renderList();
 }
 
 /** Normalise un classeur importé en liste d'enregistrements métier. */
@@ -1618,40 +1892,44 @@ function getExcelWeekNumberMonday(date) {
   return Math.ceil((dayOfYear + jan1Day - 1) / 7);
 }
 
-/** Retourne la classe de maturité selon le jour de l'année. */
+/** Classe visible selon la date mois/jour, sans décalage les années bissextiles. */
 function getMaturityClass(maturityDate) {
-  const day = getDayOfYear(maturityDate);
-  if (!day) return 'Hors intervalle';
-  const cls = MATURITY_CLASSES.find(c => day >= c.min && day <= c.max);
+  const d = parseISODate(maturityDate);
+  if (!d) return 'Hors intervalle';
+  const monthDay = (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+  const cls = MATURITY_CLASSES.find(c => monthDay >= c.start && monthDay <= c.end);
   return cls ? cls.label : 'Hors intervalle';
 }
 
-/** Retourne la charge recommandée finale selon maturité et type rond/plat. */
-function getRecommendedLoad(maturityDate, flat) {
+/** Recherche les paramètres agronomiques conservés de la version précédente. */
+function getAgronomicEstimateClass(maturityDate) {
   const day = getDayOfYear(maturityDate);
-  if (!day) return '';
-  const cls = MATURITY_CLASSES.find(c => day >= c.min && day <= c.max);
+  return day ? AGRONOMIC_ESTIMATE_CLASSES.find(c => day >= c.min && day <= c.max) : null;
+}
+
+/** Charge conseillée inchangée, indépendante du nouveau découpage des filtres. */
+function getRecommendedLoad(maturityDate, flat) {
+  const cls = getAgronomicEstimateClass(maturityDate);
   if (!cls) return '';
   return flat ? cls.flatLoad : cls.roundLoad;
 }
 
-
-/** Estime la date de durcissement du noyau à partir du créneau de maturité. */
+/** Date de durcissement estimée sans modifier les paramètres agronomiques. */
 function calculateStoneHardeningDate(maturityDate) {
   const d = parseISODate(maturityDate);
   if (!d) return '';
-  const cls = getMaturityClass(maturityDate);
-  let offset = '';
-  if (cls === 'Très précoces' || cls === 'Précoces / semi-précoces') offset = 37;
-  else if (cls === 'Pleine saison') offset = 52;
-  else if (cls === 'Tardives à très tardives') offset = 70;
-  if (offset === '') return '';
-  d.setUTCDate(d.getUTCDate() - offset);
+  const cls = getAgronomicEstimateClass(maturityDate);
+  if (!cls) return '';
+  d.setUTCDate(d.getUTCDate() - cls.stoneOffset);
   return toISODate(d);
 }
 
 /** Retourne les nombres de rameaux propres à une variété. */
+/** Structure de l'arbre : comptage réalisé lors de la taille, repris ici pour estimer la charge.
+ *  Les anciens enregistrements saisis dans la fiche éclaircissage servent de repli. */
 function getShootCounts(record) {
+  const pruning = getPruningCounts(record);
+  if (pruning && pruning.total > 0) return { large: pruning.large, medium: pruning.medium, small: pruning.small };
   const large = numberOrBlank(record?.shootLarge);
   const medium = numberOrBlank(record?.shootMedium);
   const small = numberOrBlank(record?.shootSmall);
@@ -1721,7 +1999,7 @@ function calculateTreeFruitEstimate(record) {
     record.estimatedFruitAfterTree = '';
     record.estimatedFruitRemovedTree = '';
     record.estimatedWeightedRate = '';
-    record.estimatedRateClass = 'rameaux à renseigner';
+    record.estimatedRateClass = 'rameaux à compter en taille';
     record.estimatedLoadGap = '';
     return record;
   }
@@ -2028,6 +2306,7 @@ function renderHome() {
   const parcelsButton = document.getElementById('menuParcelsButton');
   const treesButton = document.getElementById('menuTreesButton');
   const historyButton = document.getElementById('menuHistoryButton');
+
   if (workloadButton) {
     workloadButton.onclick = openWorkloadFromMenu;
     workloadButton.addEventListener('touchend', openWorkloadFromMenu, { passive: false });
@@ -2133,14 +2412,16 @@ function renderList() {
   state.currentView = 'list';
   const stats = getStats();
   const records = getFilteredRecords();
-  app.innerHTML = listHeader('Suivi éclaircissage', `${records.length} affichée(s) sur ${state.records.length}`) + `
+  state.activeSection = 'thinning';
+  app.innerHTML = sectionToggleHeader('thinning', `${records.length} affichée(s) sur ${state.records.length}`,
+    '<button class="list-action-btn stats" onclick="renderStats()"><span class="icon">📊</span><span>Stats</span></button>') + `
     <main class="content">
       <div class="searchbar">
-        <input id="searchInput" type="search" placeholder="Rechercher variété, SE, parcelle, rang…" value="${escapeAttr(state.search)}" />
+        <input id="searchInput" type="search" placeholder="Variété, SE, parcelle, rang…" value="${escapeAttr(state.search)}" />
+        ${filterButton()}
       </div>
       ${progressBlock(stats.progress, stats.done, stats.total)}
       <div class="chips" id="filterChips">${filterNames().map(f => `<button class="chip ${state.currentFilter === f ? 'active' : ''}" data-filter="${escapeAttr(f)}">${f}</button>`).join('')}</div>
-      ${renderExtraFilters()}
       <div class="compact-list">
         ${records.length ? records.map(renderRecordCard).join('') : '<div class="empty">Aucune variété ne correspond aux filtres.</div>'}
       </div>
@@ -2159,10 +2440,6 @@ function renderList() {
     });
   });
   document.querySelectorAll('[data-filter]').forEach(btn => btn.addEventListener('click', e => { state.currentFilter = e.currentTarget.dataset.filter; renderList(); }));
-  const parcelSelect = document.getElementById('parcelSelect');
-  if (parcelSelect) parcelSelect.addEventListener('change', e => { state.selectedParcel = e.target.value; renderList(); });
-  const weekSelect = document.getElementById('weekSelect');
-  if (weekSelect) weekSelect.addEventListener('change', e => { state.selectedWeek = e.target.value; renderList(); });
 }
 
 
@@ -2195,9 +2472,6 @@ function attachFormAccordionStateHandlers() {
 
 function attachSequentialFieldNavigation() {
   const order = [
-    'shootLarge',
-    'shootMedium',
-    'shootSmall',
     'branches.small.before',
     'branches.small.remaining',
     'branches.medium.before',
@@ -2232,14 +2506,12 @@ function attachSequentialFieldNavigation() {
 
 
 function formSectionForField(field) {
-  if (['shootLarge', 'shootMedium', 'shootSmall'].includes(field)) return 'structure';
   if (field === 'completionDate') return 'realization';
   if (String(field || '').startsWith('branches.')) return 'rate';
   return '';
 }
 
 function isFormSectionComplete(section, record) {
-  if (section === 'structure') return hasCompleteShootCounts(record);
   if (section === 'realization') return !!record.completionDate;
   if (section === 'rate') return false;
   return false;
@@ -2262,9 +2534,9 @@ function sectionStatusHtml(section, record) {
     label = record.correctedThinningDate ? 'OK' : '';
     cls = 'ok';
   } else if (section === 'structure') {
-    if (hasCompleteShootCounts(record)) {
-      const total = Number(record.shootLarge) + Number(record.shootMedium) + Number(record.shootSmall);
-      label = `${total} rameaux`;
+    const counts = getShootCounts(record);
+    if (counts) {
+      label = `${counts.large + counts.medium + counts.small} rameaux`;
       cls = 'ok';
     }
   } else if (section === 'realization') {
@@ -2288,7 +2560,7 @@ function sectionStatusHtml(section, record) {
 }
 
 function updateFormSectionStatuses(record) {
-  ['info', 'structure', 'realization', 'rate', 'comment'].forEach(section => {
+  ['info', 'realization', 'rate', 'comment'].forEach(section => {
     const current = document.querySelector(`[data-section-status="${section}"]`);
     if (!current) return;
     const tmp = document.createElement('div');
@@ -2327,14 +2599,14 @@ function renderForm(id) {
             ${readTile('Jours avant éclair.', daysThinning === null ? '—' : daysThinning)}
             ${readTile('Jours avant maturité', daysMaturity === null ? '—' : daysMaturity)}
             ${readTile('Charge conseillée', record.recommendedLoad ? record.recommendedLoad + ' fruits/arbre' : '—')}
+            ${readTile('Rameaux/arbre (taille)', shootStructureSummary(record))}
           </div>
           <div class="fields" style="margin-top:12px">
             ${inputField('Date de durcissement du noyau', 'stoneHardeningDate', record.stoneHardeningDate, 'date')}
           </div>
+          ${preWorkToggle(record, 'thinning')}
         </div>
       </details>
-
-      ${shootStructureSection(record)}
 
       <details class="card collapsible" data-section="realization"${getFormSectionOpenAttr('realization')}>
         <summary><span class="summary-title">📅 Réalisation</span>${sectionStatusHtml('realization', record)}</summary>
@@ -2390,7 +2662,8 @@ function renderStats() {
     <main class="content grid">
       <section class="card">
         <div class="grid home-grid">
-          ${statCard('Total variétés', s.total)}
+          ${statCard('Variétés', getVarietyCatalogue().length)}
+          ${statCard('Plantations', s.total)}
           ${statCard('Observées', s.observed)}
           ${statCard('Prêtes à éclaircir', s.ready)}
           ${statCard('Réalisées', s.thinned)}
@@ -2565,7 +2838,11 @@ async function saveLocalData(show = false) {
     lastSavedAt: state.lastSavedAt,
     lastExportAt: state.lastExportAt,
     customParcels: state.customParcels,
-    history: state.history
+    history: state.history,
+    pruningColors: state.pruningColors,
+    pruningTypes: state.pruningTypes,
+    varieties: state.varieties,
+    activeSection: state.activeSection
   };
   try {
     if (window.localforage) await localforage.setItem(APP_KEY, payload);
@@ -2584,7 +2861,12 @@ async function loadLocalData() {
     if (window.localforage) payload = await localforage.getItem(APP_KEY);
     if (!payload) payload = JSON.parse(localStorage.getItem(APP_KEY) || 'null');
     if (payload) {
+      state.pruningColors = { ...DEFAULT_PRUNING_COLORS, ...(payload.pruningColors || {}) };
+      state.pruningTypes = Array.isArray(payload.pruningTypes) ? payload.pruningTypes.filter(t => t && t.key) : [];
+      state.varieties = Array.isArray(payload.varieties) ? payload.varieties.filter(v => v && v.id) : [];
+      state.activeSection = payload.activeSection === 'pruning' ? 'pruning' : 'thinning';
       state.records = (payload.records || []).map(recalculateRecord);
+      ensureVarietyLinks();
       state.lastSavedAt = payload.lastSavedAt || null;
       state.lastExportAt = payload.lastExportAt || localStorage.getItem(EXPORT_DATE_KEY) || null;
       state.customParcels = Array.isArray(payload.customParcels) ? payload.customParcels : [];
@@ -2621,6 +2903,10 @@ function exportToExcel() {
     const wsHistory = XLSX.utils.json_to_sheet(state.history.map(historyToExportRow));
     XLSX.utils.book_append_sheet(wb, wsHistory, 'Historique');
   }
+  const pruningRows = state.records.map(pruningExportRow);
+  if (pruningRows.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pruningRows), 'Taille');
+  }
   const stamp = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `Suivi_eclaircissage_PN_${stamp}.xlsx`);
   state.lastExportAt = new Date().toISOString();
@@ -2637,6 +2923,8 @@ async function resetSeason() {
   const second = prompt('Tapez SUPPRIMER pour confirmer la réinitialisation complète.');
   if (second !== 'SUPPRIMER') return showToast('Réinitialisation annulée');
   state.records = [];
+  state.varieties = [];
+  state.varietyEditId = null;
   state.lastSavedAt = null;
   state.lastExportAt = null;
   state.customParcels = [];
@@ -2681,12 +2969,16 @@ function renderParcelsManagement() {
 
       <section class="card">
         <h2 class="section-title">Parcelles créées</h2>
+        <p class="muted small" style="margin:-4px 0 10px">Importez le plan d’une parcelle au format Excel : SE, Variété, Dénomination, Clone, Protection, Rang, Arbre de début, Arbre de fin, Nb Arbres.</p>
+        <input id="parcelPlanFile" class="file-input" type="file" accept=".xlsx,.xls,.csv" />
         <div class="parcel-added-list">
           ${parcels.length ? parcels.map(p => parcelManagementRow(p, recordsByParcel[p] || 0)).join('') : '<div class="empty">Aucune parcelle créée.</div>'}
         </div>
+        <button class="btn secondary" style="margin-top:12px" onclick="downloadParcelPlanTemplate()">⬇️ Télécharger le modèle Excel</button>
       </section>
     </main>`;
 
+  document.getElementById('parcelPlanFile')?.addEventListener('change', handleParcelPlanFile);
 }
 
 function parcelManagementRow(parcel, count) {
@@ -2697,6 +2989,7 @@ function parcelManagementRow(parcel, count) {
       <div class="parcel-added-meta">${count} variété${count > 1 ? 's' : ''} associée${count > 1 ? 's' : ''}</div>
     </div>
     <div class="parcel-row-actions">
+      <button class="parcel-import-btn" onclick="openParcelPlanImport('${escapeAttr(parcel)}')">📥 Plan</button>
       <button class="parcel-edit-btn" onclick="editParcelName('${escapeAttr(parcel)}')">Modifier</button>
       <button class="parcel-delete-btn" onclick="deleteParcelName('${escapeAttr(parcel)}')">Supprimer</button>
     </div>
@@ -2927,75 +3220,6 @@ async function deleteHistoryEntry(key, year) {
   renderHistory();
 }
 
-function renderTreesManagement() {
-  lockViewportMobile();
-  if (!Array.isArray(state.customParcels)) state.customParcels = [];
-  if (!Array.isArray(state.records)) state.records = [];
-  state.currentView = 'trees';
-  const parcels = getAllParcels();
-  if (!state.parcelManagerSelected && parcels.length) state.parcelManagerSelected = parcels[0];
-  const editRecord = state.parcelEditId ? state.records.find(r => r.id === state.parcelEditId) : null;
-  if (editRecord && editRecord.parcel && state.parcelManagerSelected !== editRecord.parcel) state.parcelManagerSelected = editRecord.parcel;
-  const selectedAfterEdit = state.parcelManagerSelected || '';
-  const treesSearch = state.treesManagerSearch || '';
-  const allRecords = filterTreesManagementRecords(sortVarietiesForThinning([...(state.records || [])]), treesSearch);
-  const totalRecords = (state.records || []).length;
-  const formTitle = editRecord ? 'Modifier une variété' : 'Créer une variété';
-  const submitLabel = editRecord ? 'Enregistrer la modification' : 'Ajouter la variété';
-  const cancelEditButton = editRecord ? `<button class="parcel-cancel-edit-btn" type="button" onclick="cancelParcelEdit()">Annuler la modification</button>` : '';
-
-  app.innerHTML = layoutHeader('Base variétale', 'Créer, modifier ou supprimer les données variétales', true) + `
-    <main class="content grid">
-      <details class="card collapsible" ${editRecord ? 'open' : ''}>
-        <summary>${formTitle}</summary>
-        <div class="collapsible-body">
-          <div class="parcel-add-grid">
-            <div class="field full"><label>Parcelle</label><select id="parcelManagerSelect" required>${parcels.length ? parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selectedAfterEdit ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('') : '<option value="">Créer une parcelle d’abord</option>'}</select></div>
-            <div class="field"><label>SE</label><select id="parcelAddSe" required><option value="">Choisir…</option>${SE_OPTIONS.map(se => `<option value="${escapeAttr(se)}" ${editRecord && editRecord.se === se ? 'selected' : ''}>${escapeHtml(se)}</option>`).join('')}</select></div>
-            <div class="field"><label>Variété</label><input id="parcelAddVariety" type="text" placeholder="Code variété" value="${escapeAttr(editRecord?.variety || '')}" required></div>
-            <div class="field full"><label>Dénomination</label><input id="parcelAddDenomination" type="text" placeholder="Nom commercial si disponible" value="${escapeAttr(editRecord?.denomination || '')}"></div>
-            <div class="field"><label>Rang</label><input id="parcelAddRow" type="number" inputmode="numeric" placeholder="Ex. 11" value="${escapeAttr(editRecord?.row || '')}" required></div>
-            <div class="field"><label>Arbre de début</label><input id="parcelAddTreeStart" type="number" inputmode="numeric" placeholder="Ex. 197" value="${escapeAttr(editRecord?.treeStart || '')}" required></div>
-            <div class="field"><label>Arbre de fin</label><input id="parcelAddTreeEnd" type="number" inputmode="numeric" placeholder="Ex. 201" value="${escapeAttr(editRecord?.treeEnd || '')}" required></div>
-            <div class="field"><label>Nb Arbres</label><input id="parcelAddTreeCount" type="number" inputmode="numeric" placeholder="Ex. 5" value="${escapeAttr(editRecord?.treeCount || '')}" required></div>
-            <div class="field full"><label>Maturité</label><input id="parcelAddMaturity" type="date" value="${escapeAttr(editRecord?.maturityDate || '')}" required></div>
-          </div>
-          <button class="btn primary full" style="margin-top:14px" onclick="addRecordToParcel()">${submitLabel}</button>
-          ${cancelEditButton}
-        </div>
-      </details>
-
-      <section class="card manager-search-card">
-        <div class="searchbar">
-          <input id="treesManagerSearchInput" type="search" placeholder="🔍 Rechercher SE, variété, dénomination, maturité, R10, A204…" value="${escapeAttr(treesSearch)}" />
-        </div>
-        <p class="manager-empty-hint">${allRecords.length} résultat(s) affiché(s) sur ${totalRecords} variété(s).</p>
-      </section>
-
-      <section class="card">
-        <h2 class="section-title">Données variétales</h2>
-        <div class="parcel-added-list">
-          ${allRecords.length ? allRecords.map(parcelAddedRow).join('') : '<div class="empty">Aucune variété ne correspond à la recherche.</div>'}
-        </div>
-      </section>
-    </main>`;
-
-  document.getElementById('parcelManagerSelect')?.addEventListener('change', e => { state.parcelManagerSelected = e.target.value; });
-  document.getElementById('treesManagerSearchInput')?.addEventListener('input', e => {
-    state.treesManagerSearch = e.target.value;
-    renderTreesManagement();
-    requestAnimationFrame(() => {
-      const input = document.getElementById('treesManagerSearchInput');
-      if (input) {
-        input.focus();
-        const len = input.value.length;
-        input.setSelectionRange?.(len, len);
-      }
-    });
-  });
-}
-
-
 function filterTreesManagementRecords(records, query) {
   const q = normalizeKey(query || '');
   if (!q) return records;
@@ -3085,142 +3309,12 @@ async function deleteParcelName(parcel) {
   renderParcelsManagement();
 }
 
-function parcelAddedRow(r) {
-  const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="parcel-added-meta">${escapeHtml(r.denomination)}</div>` : '';
-  return `<div class="parcel-added-row">
-    <div class="se-block ${seColorClass(r.se)}">${escapeHtml(r.se || '—')}</div>
-    <div>
-      <div class="parcel-added-title">${escapeHtml(r.variety || 'Sans variété')}</div>
-      ${denom}
-      <div class="parcel-added-meta">${escapeHtml(r.parcel || 'Sans parcelle')} · ${escapeHtml(formatTreePosition(r))} · ${escapeHtml(r.treeCount || calculateTreeCount(r.treeStart, r.treeEnd) || '—')} arbre(s) · Maturité ${escapeHtml(r.maturityDate || '—')}</div>
-    </div>
-    <div class="parcel-row-actions">
-      <button class="parcel-edit-btn" onclick="editRecordFromParcel('${escapeAttr(r.id)}')">Modifier</button>
-      <button class="parcel-delete-btn" onclick="deleteRecordFromParcel('${escapeAttr(r.id)}')">Supprimer</button>
-    </div>
-  </div>`;
-}
-
 function expectedManualTreeCount(start, end) {
   const startNum = num(start);
   const endNum = num(end);
   if (!Number.isFinite(startNum) || !Number.isFinite(endNum)) return null;
   // Intervalle inclusif : A204 à A208 = 204, 205, 206, 207, 208 = 5 arbres.
   return Math.abs(endNum - startNum) + 1;
-}
-
-function editRecordFromParcel(id) {
-  const record = state.records.find(r => r.id === id);
-  if (!record) return showToast('Variété introuvable');
-  state.parcelEditId = id;
-  state.parcelManagerSelected = record.parcel || state.parcelManagerSelected || '';
-  renderParcelManagement();
-  setTimeout(() => document.getElementById('parcelAddVariety')?.focus(), 50);
-}
-
-function cancelParcelEdit() {
-  state.parcelEditId = null;
-  renderTreesManagement();
-}
-
-async function addRecordToParcel() {
-  const parcel = String(document.getElementById('parcelManagerSelect')?.value || '').trim();
-  if (!parcel) return showToast('Créer ou choisir une parcelle');
-
-  const se = cleanCell(document.getElementById('parcelAddSe')?.value || '');
-  const variety = cleanCell(document.getElementById('parcelAddVariety')?.value || '');
-  const denomination = cleanCell(document.getElementById('parcelAddDenomination')?.value || '');
-  const row = cleanCell(document.getElementById('parcelAddRow')?.value || '');
-  const treeStart = cleanCell(document.getElementById('parcelAddTreeStart')?.value || '');
-  const treeEnd = cleanCell(document.getElementById('parcelAddTreeEnd')?.value || '');
-  const explicitCount = cleanCell(document.getElementById('parcelAddTreeCount')?.value || '');
-  const maturityDate = normalizeDate(document.getElementById('parcelAddMaturity')?.value || '');
-
-  const missing = [];
-  if (!se) missing.push('SE');
-  if (!variety) missing.push('Variété');
-  if (!row) missing.push('Rang');
-  if (!treeStart) missing.push('Arbre de début');
-  if (!treeEnd) missing.push('Arbre de fin');
-  if (!explicitCount) missing.push('Nb Arbres');
-  if (!maturityDate) missing.push('Maturité');
-  if (missing.length) return showToast(`Champ obligatoire : ${missing[0]}`);
-
-  const rowNum = num(row);
-  const startNum = num(treeStart);
-  const endNum = num(treeEnd);
-  const countNum = num(explicitCount);
-  if (!Number.isFinite(rowNum) || !Number.isFinite(startNum) || !Number.isFinite(endNum) || !Number.isFinite(countNum)) return showToast('Valeurs numériques invalides');
-  if (![rowNum, startNum, endNum, countNum].every(Number.isInteger)) return showToast('Rang, arbres et Nb Arbres doivent être entiers');
-  if (endNum < startNum) return showToast('Arbre de fin inférieur au début');
-  if (countNum <= 0) return showToast('Nb Arbres doit être supérieur à 0');
-
-  const expectedCount = expectedManualTreeCount(startNum, endNum);
-  if (expectedCount !== countNum) {
-    return showToast(`Incohérence : A${startNum} à A${endNum} correspond à ${expectedCount} arbre(s), pas ${countNum}.`);
-  }
-
-  const editingId = state.parcelEditId;
-  const existing = editingId ? state.records.find(r => r.id === editingId) : null;
-  const baseRecord = existing ? { ...existing } : {
-    id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    clone: '',
-    typeFruit: '',
-    importedThinningDate: '',
-    manualDate: '',
-    completionDate: '',
-    observationDate: '',
-    stoneHardeningDate: '',
-    recommendedLoad: '',
-    historicalRate: '',
-    historicalClass: '',
-    status: 'à observer',
-    finished: false,
-    degrouping: false,
-    comment: '',
-    misc: '',
-    branches: emptyBranches()
-  };
-
-  const updatedRecord = recalculateRecord({
-    ...baseRecord,
-    group: parcel,
-    parcel,
-    se,
-    variety,
-    denomination,
-    row,
-    treeStart,
-    treeEnd,
-    treeCount: explicitCount,
-    maturityDate,
-    lastModified: new Date().toISOString()
-  });
-
-  if (existing) {
-    state.records = state.records.map(r => r.id === editingId ? updatedRecord : r);
-    state.parcelEditId = null;
-    showToast('Variété modifiée');
-  } else {
-    state.records.push(updatedRecord);
-    showToast('Variété ajoutée');
-  }
-
-  if (!state.customParcels.includes(parcel) && !getAllParcels().includes(parcel)) state.customParcels.push(parcel);
-  state.parcelManagerSelected = parcel;
-  await saveLocalData(false);
-  renderTreesManagement();
-}
-
-async function deleteRecordFromParcel(id) {
-  const record = state.records.find(r => r.id === id);
-  if (!record) return;
-  if (!confirm(`Supprimer ${record.variety || record.se || 'cette variété'} de la liste ?`)) return;
-  state.records = state.records.filter(r => r.id !== id);
-  if (state.parcelEditId === id) state.parcelEditId = null;
-  await saveLocalData(false);
-  showToast('Variété supprimée');
-  renderTreesManagement();
 }
 
 async function addCustomParcel() {
@@ -3287,8 +3381,9 @@ async function handleFileImport(event) {
     if (!imported.length) return showToast('Aucune ligne exploitable détectée');
     const keep = state.records.length ? confirm('Remplacer les données actuelles par ce fichier importé ? Annuler = fusionner.') : true;
     updateMaturityHistoryFromImported(imported);
-    if (keep) state.records = imported;
+    if (keep) { state.records = imported; state.varieties = []; }
     else state.records = mergeRecords(state.records, imported);
+    ensureVarietyLinks();
     await saveLocalData(false);
     showToast(`${imported.length} ligne(s) importée(s)`);
     renderList();
@@ -3339,6 +3434,7 @@ function rowToRecord(row, header, fieldMap, sheetName, references) {
     variety,
     denomination: cleanCell(getCell(row, header, fieldMap.denomination)) || ref.denomination || '',
     clone: cleanCell(getCell(row, header, fieldMap.clone)),
+    protection: cleanCell(getCell(row, header, fieldMap.protection)),
     row: cleanCell(getCell(row, header, fieldMap.row)),
     treeStart: cleanCell(getCell(row, header, fieldMap.treeStart)),
     treeEnd: cleanCell(getCell(row, header, fieldMap.treeEnd)),
@@ -3402,6 +3498,7 @@ function recalculateRecord(record) {
   if (!record.historicalClass && record.historicalRate !== '') record.historicalClass = getThinningClass(record.historicalRate);
   calculateThinningRate(record);
   calculatePriorityScore(record);
+  normalizePruningRecord(record);
   return record;
 }
 
@@ -3486,14 +3583,26 @@ function updateFinishStateUI(id) {
   }
 }
 
+/** Texte de recherche d'une plantation : identité, position, et les attributs qui
+ *  n'ont plus de filtre dédié (typologie, maturité, piquet, travaux). */
+function recordSearchHaystack(r, section) {
+  const parts = [
+    r.variety, r.denomination, r.se, r.parcel || r.group, r.clone, r.protection,
+    `R${r.row}`, `A${r.treeStart}`, `A${r.treeEnd}`, r.row, r.treeStart, r.treeEnd,
+    pruningShapeLabel(r), pruningMaturityBucket(r), displayDate(r.maturityDate)
+  ];
+  if (r.pruningType) parts.push(pruningTypeLabel(r.pruningType), pruningColorName(pruningColorHex(r.pruningType)));
+  if (hasPreWork(r, section)) parts.push('travaux', section === 'pruning' ? 'pré-taille' : 'pré-éclaircissage');
+  return parts.filter(Boolean).join(' ');
+}
+
 function getFilteredRecords() {
   let records = sortVarietiesForThinning(state.records.map(recalculateRecord));
   const q = normalizeColumnName(state.search);
   if (q) {
-    records = records.filter(r => normalizeColumnName([r.variety, r.denomination, r.se, r.parcel, r.row, r.treeStart, r.treeEnd].join(' ')).includes(q));
+    records = records.filter(r => normalizeColumnName(recordSearchHaystack(r, 'thinning')).includes(q));
   }
-  if (state.selectedParcel) records = records.filter(r => (r.parcel || r.group) === state.selectedParcel);
-  if (state.selectedWeek) records = records.filter(r => String(r.thinningWeek) === String(state.selectedWeek));
+  records = applySharedFilters(records, 'thinning');
   const thisWeek = getExcelWeekNumberMonday(todayISO());
   switch (state.currentFilter) {
     case 'À faire': records = records.filter(r => !isDoneRecord(r)); break;
@@ -3502,20 +3611,12 @@ function getFilteredRecords() {
     case 'Cette semaine': records = records.filter(r => Number(r.thinningWeek) === Number(thisWeek)); break;
     case 'Avec commentaire': records = records.filter(r => r.comment || r.misc); break;
   }
+  // L'ordre d'urgence est déjà appliqué en amont par sortVarietiesForThinning.
   return records;
 }
 
 function filterNames() {
   return ['Toutes', 'À faire', 'Finis', 'En retard', 'Cette semaine', 'Avec commentaire'];
-}
-
-function renderExtraFilters() {
-  const parcels = unique(state.records.map(r => r.parcel || r.group).filter(Boolean));
-  const weeks = unique(state.records.map(r => r.thinningWeek).filter(Boolean)).sort((a,b) => num(a) - num(b));
-  return `<div class="list-filter-grid">
-    <div class="field"><label>Par parcelle</label><select id="parcelSelect"><option value="">Toutes</option>${parcels.map(p => `<option value="${escapeAttr(p)}" ${state.selectedParcel === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
-    <div class="field"><label>Par semaine d’éclaircissage</label><select id="weekSelect"><option value="">Toutes</option>${weeks.map(w => `<option value="${escapeAttr(w)}" ${String(state.selectedWeek) === String(w) ? 'selected' : ''}>Semaine ${escapeHtml(w)}</option>`).join('')}</select></div>
-  </div>`;
 }
 
 function renderRecordCard(r) {
@@ -3524,7 +3625,7 @@ function renderRecordCard(r) {
   const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="compact-denomination">${escapeHtml(r.denomination)}</div>` : '';
   return `<article class="compact-var-row ${done ? 'done' : ''}" onclick="renderForm('${r.id}')">
     <div class="se-block ${seColorClass(r.se)}">${escapeHtml(r.se || '—')}</div>
-    <div class="compact-main"><div class="compact-main-name">${escapeHtml(r.variety || 'Sans variété')}${done ? '<span class="compact-check">✓</span>' : ''}</div>${denom}</div>
+    <div class="compact-main"><div class="compact-main-name">${escapeHtml(r.variety || 'Sans variété')}${preWorkBadge(r, 'thinning')}${done ? '<span class="compact-check">✓</span>' : ''}</div>${denom}</div>
     <div class="compact-position">${escapeHtml(pos)}</div>
   </article>`;
 }
@@ -3562,6 +3663,32 @@ function layoutHeader(title, subtitle, back = true, right = '') {
   </div></header>`;
 }
 
+/** En-tête des deux suivis : le titre central bascule d'un chantier à l'autre. */
+function sectionToggleHeader(section, subtitle, right) {
+  const pruning = section === 'pruning';
+  const title = pruning ? 'Suivi taille' : 'Suivi éclaircissage';
+  const other = pruning ? 'éclaircissage' : 'taille';
+  return `<header class="topbar"><div class="topbar-row">
+    <button class="list-action-btn menu" onclick="renderHome()"><span class="icon">☰</span><span>Menu</span></button>
+    <button type="button" class="section-toggle" onclick="toggleMainSection()" aria-label="Passer au suivi ${escapeAttr(other)}">
+      <span class="section-toggle-title"><span class="section-toggle-icon">⇄</span>${escapeHtml(title)}</span>
+      <span class="section-toggle-sub">${escapeHtml(subtitle || '')}</span>
+      <span class="section-toggle-hint">Toucher pour ${escapeHtml(other)}</span>
+    </button>
+    ${right}
+  </div></header>`;
+}
+
+/** Bascule entre le suivi éclaircissage et le suivi taille. */
+function toggleMainSection() {
+  const next = state.activeSection === 'pruning' ? 'thinning' : 'pruning';
+  state.activeSection = next;
+  saveLocalData(false);
+  if (next === 'pruning') renderPruningList();
+  else renderList();
+  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+}
+
 function listHeader(title, subtitle) {
   return `<header class="topbar"><div class="topbar-row">
     <button class="list-action-btn menu" onclick="renderHome()"><span class="icon">☰</span><span>Menu</span></button>
@@ -3586,10 +3713,15 @@ function formHeader(record, done) {
   </header>`;
 }
 
+function goBackToSection() {
+  if (state.activeSection === 'pruning') renderPruningList();
+  else renderList();
+}
+
 function goBack() {
   document.activeElement?.blur?.();
   lockViewportMobile();
-  renderList();
+  goBackToSection();
   requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
 }
 
@@ -3611,19 +3743,46 @@ function readTile(label, value) {
 }
 
 
-function shootStructureSection(record) {
-  const total = hasCompleteShootCounts(record) ? Number(record.shootLarge) + Number(record.shootMedium) + Number(record.shootSmall) : '';
-  return `<details class="card collapsible" data-section="structure"${getFormSectionOpenAttr('structure')}>
-    <summary><span class="summary-title">🌿 Structure de l’arbre</span>${sectionStatusHtml('structure', record)}</summary>
-    <div class="collapsible-body">
-      <div class="parcel-add-grid">
-        <div class="field"><label>Gros rameaux</label><input type="number" inputmode="numeric" enterkeyhint="next" min="0" step="1" data-field="shootLarge" value="${escapeAttr(record.shootLarge ?? '')}"></div>
-        <div class="field"><label>Rameaux moyens</label><input type="number" inputmode="numeric" enterkeyhint="next" min="0" step="1" data-field="shootMedium" value="${escapeAttr(record.shootMedium ?? '')}"></div>
-        <div class="field"><label>Petits rameaux</label><input type="number" inputmode="numeric" enterkeyhint="done" min="0" step="1" data-field="shootSmall" value="${escapeAttr(record.shootSmall ?? '')}"></div>
-      </div>
-      <p class="muted small" style="margin:10px 0 0">Donnée terrain annuelle utilisée pour estimer la charge réelle.</p>
-    </div>
-  </details>`;
+/** Résumé de la structure de l'arbre issue du comptage de taille. */
+/* --- Marqueur travaux préparatoires : purement indicatif, aucune règle associée --- */
+
+const PRE_WORK_FIELDS = { thinning: 'preWorkThinning', pruning: 'preWorkPruning' };
+const PRE_WORK_LABELS = { thinning: 'Pré-éclaircissage réalisé', pruning: 'Pré-taille réalisée' };
+
+function hasPreWork(record, section) {
+  return !!record?.[PRE_WORK_FIELDS[section]];
+}
+
+function preWorkBadge(record, section) {
+  return hasPreWork(record, section) ? '<span class="prework-badge" title="' + PRE_WORK_LABELS[section] + '">🚧</span>' : '';
+}
+
+function preWorkToggle(record, section) {
+  const on = hasPreWork(record, section);
+  return `<button type="button" class="prework-toggle ${on ? 'active' : ''}" onclick="togglePreWork('${record.id}','${section}')">
+    <span class="prework-emoji">🚧</span>
+    <span class="prework-text">${PRE_WORK_LABELS[section]}</span>
+    <span class="prework-state">${on ? 'Oui' : 'Non'}</span>
+  </button>`;
+}
+
+/** Bascule le marqueur travaux. Libre d'usage : il ne conditionne aucun calcul ni aucune validation. */
+function togglePreWork(id, section) {
+  const record = state.records.find(r => r.id === id);
+  const field = PRE_WORK_FIELDS[section];
+  if (!record || !field) return;
+  record[field] = !record[field];
+  record.lastModified = new Date().toISOString();
+  saveLocalData(false);
+  showToast(record[field] ? `🚧 ${PRE_WORK_LABELS[section]}` : 'Marqueur retiré');
+  if (section === 'pruning') renderPruningForm(id);
+  else renderForm(id);
+}
+
+function shootStructureSummary(record) {
+  const counts = getShootCounts(record);
+  if (!counts) return 'à compter en taille';
+  return `${counts.small + counts.medium + counts.large} (P${counts.small}·M${counts.medium}·G${counts.large})`;
 }
 
 function rateSection(record, showInputs = true) {
@@ -3710,11 +3869,11 @@ function estimateDetailSections(record) {
     ['Petit rameau', branchLabel('small')],
     ['Rameau moyen', branchLabel('medium')],
     ['Gros rameau', branchLabel('large')],
-    ['Petits rameaux/arbre', shoots ? String(shoots.small) : 'à renseigner'],
-    ['Rameaux moyens/arbre', shoots ? String(shoots.medium) : 'à renseigner'],
-    ['Gros rameaux/arbre', shoots ? String(shoots.large) : 'à renseigner'],
-    ['Total rameaux/arbre', shoots ? String(shoots.large + shoots.medium + shoots.small) : 'à renseigner']
-  ], 'Les flèches indiquent fruits avant → fruits après sur chaque rameau observé.'));
+    ['Petits rameaux/arbre', shoots ? String(shoots.small) : 'à compter en taille'],
+    ['Rameaux moyens/arbre', shoots ? String(shoots.medium) : 'à compter en taille'],
+    ['Gros rameaux/arbre', shoots ? String(shoots.large) : 'à compter en taille'],
+    ['Total rameaux/arbre', shoots ? String(shoots.large + shoots.medium + shoots.small) : 'à compter en taille']
+  ], 'Fruits avant → après sur les rameaux observés. Le nombre de rameaux par arbre vient du comptage réalisé à la taille.'));
 
   sections.push(estimateSection('Calcul sur rameaux observés', [
     ['Total fruits avant', estimateValue(record.totalBefore)],
@@ -3819,7 +3978,7 @@ function canFinishThinning(record) {
 
 function getFinishValidationMessage(record) {
   if (!record.completionDate) return 'Renseigner la date de réalisation';
-  if (!hasCompleteShootCounts(record)) return 'Renseigner la structure de l’arbre';
+  if (!hasCompleteShootCounts(record)) return 'Compter les rameaux dans Suivi taille';
   if (!hasCompleteBranchCounts(record)) return 'Remplir les fruits avant/après des 3 rameaux';
   if (!hasValidBranchCounts(record)) return 'Corriger les valeurs : après ≤ avant';
   return '';
@@ -3887,14 +4046,16 @@ function recordToExportRow(r) {
     'variété': r.variety,
     'dénomination': r.denomination,
     'clone': r.clone,
+    'protection': r.protection,
+    'pré-éclaircissage réalisé': hasPreWork(r, 'thinning') ? 'oui' : '',
     'rang': r.row,
     'arbre de début': r.treeStart,
     'arbre de fin': r.treeEnd,
     'nombre d’arbres': r.treeCount,
-    'gros rameaux/arbre': r.shootLarge,
-    'rameaux moyens/arbre': r.shootMedium,
-    'petits rameaux/arbre': r.shootSmall,
-    'total rameaux/arbre': hasCompleteShootCounts(r) ? Number(r.shootLarge) + Number(r.shootMedium) + Number(r.shootSmall) : '',
+    'gros rameaux/arbre': getShootCounts(r) ? getShootCounts(r).large : '',
+    'rameaux moyens/arbre': getShootCounts(r) ? getShootCounts(r).medium : '',
+    'petits rameaux/arbre': getShootCounts(r) ? getShootCounts(r).small : '',
+    'total rameaux/arbre': getShootCounts(r) ? getShootCounts(r).large + getShootCounts(r).medium + getShootCounts(r).small : '',
     'type de fruit': r.flat ? 'plate' : 'ronde',
     'date de maturité': r.maturityDate,
     'jour de l’année de maturité': r.maturityDay,
@@ -3988,9 +4149,9 @@ function upsertThinningHistory(record) {
     class: record.calculatedRateClass || record.estimatedRateClass || '',
     realLoad: record.estimatedFruitAfterTree !== '' ? record.estimatedFruitAfterTree : '',
     recommendedLoad: record.recommendedLoad || '',
-    shootLarge: record.shootLarge || '',
-    shootMedium: record.shootMedium || '',
-    shootSmall: record.shootSmall || '',
+    shootLarge: getShootCounts(record) ? getShootCounts(record).large : '',
+    shootMedium: getShootCounts(record) ? getShootCounts(record).medium : '',
+    shootSmall: getShootCounts(record) ? getShootCounts(record).small : '',
     comment: record.comment || ''
   });
 }
@@ -4190,6 +4351,2008 @@ function escapeHtml(v) { return String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&
 function escapeAttr(v) { return escapeHtml(v).replace(/'/g, '&#39;'); }
 function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
 function debounce(fn, wait) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; }
+
+/* ============================================================================
+   FILTRES PARTAGÉS : SUIVI ÉCLAIRCISSAGE ET SUIVI TAILLE
+   Parcelles et périodes de maturité multisélectionnables ; les autres filtres
+   demeurent identiques. L'ordre par défaut des listes est conservé.
+   ========================================================================== */
+
+/** null = toutes les options, [] = aucune ; tableau de valeurs = sélection précise.
+ *  Ce modèle distingue « Tout sélectionner » de « Tout désélectionner ». */
+function getFilters() {
+  if (!state.filters || typeof state.filters !== 'object') state.filters = {};
+  const f = state.filters;
+  // Migration silencieuse des anciennes sélections uniques, sans toucher aux données terrain.
+  if (!Object.prototype.hasOwnProperty.call(f, 'parcels')) f.parcels = f.parcel ? [String(f.parcel)] : null;
+  if (!Object.prototype.hasOwnProperty.call(f, 'maturities')) f.maturities = f.maturity ? [String(f.maturity)] : null;
+  if (f.parcels !== null && !Array.isArray(f.parcels)) f.parcels = null;
+  if (f.maturities !== null && !Array.isArray(f.maturities)) f.maturities = null;
+  if (Array.isArray(f.maturities)) {
+    // Les filtres précédemment enregistrés restent utilisables après la mise à jour.
+    f.maturities = [...new Set(f.maturities.map(v => LEGACY_MATURITY_LABELS[v] || v))];
+  }
+  for (const k of ['shape', 'preWork', 'pruningType', 'week']) if (typeof f[k] !== 'string') f[k] = '';
+  delete f.parcel;
+  delete f.maturity;
+  delete f.sort;
+  return f;
+}
+
+function refreshActiveSectionList() {
+  if (state.activeSection === 'pruning') renderPruningList();
+  else renderList();
+}
+
+/** OU à l'intérieur d'un filtre multiple, ET entre les différents filtres. */
+function applySharedFilters(records, section) {
+  const f = getFilters();
+  let list = records;
+  if (f.parcels !== null) list = list.filter(r => f.parcels.includes(String(r.parcel || r.group || '')));
+  if (f.maturities !== null) list = list.filter(r => f.maturities.includes(pruningMaturityBucket(r)));
+  if (f.shape) list = list.filter(r => (isFlat(r) ? 'flat' : 'round') === f.shape);
+  if (f.pruningType) list = list.filter(r => (f.pruningType === 'none' ? !r.pruningType : r.pruningType === f.pruningType));
+  if (f.preWork) {
+    const done = f.preWork === 'done';
+    list = list.filter(r => hasPreWork(r, section) === done);
+  }
+  if (f.week && section === 'thinning') list = list.filter(r => String(r.thinningWeek) === String(f.week));
+  return list;
+}
+
+/** Ordre naturel du suivi taille : parcelle, rang, puis premier arbre. */
+function sortRecordsByParcelPosition(records) {
+  return records.slice().sort((a, b) => {
+    const parcelDiff = String(a.parcel || a.group || '').localeCompare(String(b.parcel || b.group || ''), 'fr', { numeric: true });
+    if (parcelDiff !== 0) return parcelDiff;
+    const rowDiff = num(a.row) - num(b.row);
+    if (rowDiff !== 0) return rowDiff;
+    return num(a.treeStart) - num(b.treeStart);
+  });
+}
+
+function filterButton() {
+  return `<button type="button" class="filter-icon-btn" onclick="openFilterSheet()" aria-label="Filtres">⚙️</button>`;
+}
+
+function openFilterSheet() { renderFilterSheet(); }
+function closeFilterSheet() { document.getElementById('filterSheet')?.remove(); }
+
+function multiFilterOptions(key) {
+  if (key === 'parcels') return unique(state.records.map(r => r.parcel || r.group).filter(Boolean))
+    .sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
+  if (key === 'maturities') return pruningMaturityOptions();
+  return [];
+}
+
+/** Panneau commun, avec cases explicites et raccourcis Tout/Aucun. */
+function multiFilterGroup(key, title, values) {
+  const selected = getFilters()[key];
+  const all = selected === null;
+  const count = all ? values.length : selected.length;
+  return `<div class="filter-multi-heading">
+      <p class="filter-label">${escapeHtml(title)}</p>
+      <span class="filter-multi-count">${count} / ${values.length} sélectionné(s)</span>
+    </div>
+    <div class="filter-multi-actions">
+      <button type="button" onclick="setMultiFilterAll('${key}',true)">Tout sélectionner</button>
+      <button type="button" onclick="setMultiFilterAll('${key}',false)">Tout désélectionner</button>
+    </div>
+    <div class="filter-multi-grid" data-filter-key="${key}" role="group" aria-label="${escapeAttr(title)}">
+      ${values.map(v => {
+        const checked = all || selected.includes(v);
+        return `<label class="filter-multi-option ${checked ? 'is-checked' : ''}">
+          <input type="checkbox" value="${escapeAttr(v)}" ${checked ? 'checked' : ''} onchange="toggleMultiFilter('${key}', this.value, this.checked)" />
+          <span>${escapeHtml(v)}</span>
+        </label>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderFilterSheet() {
+  const section = state.activeSection === 'pruning' ? 'pruning' : 'thinning';
+  const f = getFilters();
+  const weeks = unique(state.records.map(r => r.thinningWeek).filter(Boolean)).sort((a, b) => num(a) - num(b));
+  const visible = section === 'pruning' ? getFilteredPruningRecords().length : getFilteredRecords().length;
+  const preWorkLabel = section === 'pruning' ? 'Pré-taille' : 'Pré-éclaircissage';
+  // Ne pas perdre la position dans le panneau (notamment sur iPhone) quand une case change.
+  const previous = document.querySelector('#filterSheet .prune-sheet');
+  const previousScroll = previous ? previous.scrollTop : 0;
+  const gridScrolls = {};
+  document.querySelectorAll('#filterSheet .filter-multi-grid').forEach(el => { gridScrolls[el.dataset.filterKey] = el.scrollTop; });
+
+  const seg = (key, options) => `<div class="filter-seg">${options.map(o => `
+    <button type="button" class="filter-seg-btn ${String(f[key] || '') === String(o.value) ? 'active' : ''}" onclick="chooseFilter('${key}','${escapeAttr(o.value)}')">${o.dot ? `<span class="prune-dot sm" style="background:${o.dot}"></span>` : ''}${escapeHtml(o.label)}</button>`).join('')}</div>`;
+
+  document.getElementById('filterSheet')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'filterSheet';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true" aria-label="Filtres">
+      <div class="prune-sheet-head">
+        <h2 class="prune-sheet-title">Filtres</h2>
+        <button class="menu-close-btn" onclick="closeFilterSheet()" aria-label="Fermer">×</button>
+      </div>
+
+      ${multiFilterGroup('parcels', 'Parcelles', multiFilterOptions('parcels'))}
+      ${multiFilterGroup('maturities', 'Périodes de maturité', multiFilterOptions('maturities'))}
+
+      <p class="filter-label">Typologie</p>
+      ${seg('shape', [{ value: '', label: 'Toutes' }, { value: 'flat', label: 'Plates' }, { value: 'round', label: 'Rondes' }])}
+
+      <p class="filter-label">${escapeHtml(preWorkLabel)} 🚧</p>
+      ${seg('preWork', [{ value: '', label: 'Indifférent' }, { value: 'done', label: 'Effectué' }, { value: 'todo', label: 'Non effectué' }])}
+
+      <p class="filter-label">Type de taille (piquet)</p>
+      ${seg('pruningType', [{ value: '', label: 'Tous' }, ...getPruningTypes().map(t => ({ value: t.key, label: pruningTypeShort(t), dot: pruningColorHex(t.key) })), { value: 'none', label: 'Sans consigne' }])}
+
+      ${section === 'thinning' && weeks.length ? `<p class="filter-label">Semaine d’éclaircissage</p>
+      <select class="filter-select" onchange="chooseFilter('week', this.value)">
+        <option value="">Toutes</option>
+        ${weeks.map(wk => `<option value="${escapeAttr(wk)}" ${String(f.week) === String(wk) ? 'selected' : ''}>Semaine ${escapeHtml(wk)}</option>`).join('')}
+      </select>` : ''}
+
+      <button class="btn green" style="margin-top:16px" onclick="closeFilterSheet()">Voir les ${visible} variété(s)</button>
+      <button class="btn secondary" style="margin-top:8px" onclick="resetFilters()">Réinitialiser les filtres</button>
+    </section>`;
+  overlay.addEventListener('click', event => { if (event.target === overlay) closeFilterSheet(); });
+  document.body.appendChild(overlay);
+  overlay.querySelector('.prune-sheet').scrollTop = previousScroll;
+  overlay.querySelectorAll('.filter-multi-grid').forEach(el => { el.scrollTop = gridScrolls[el.dataset.filterKey] || 0; });
+}
+
+function toggleMultiFilter(key, value, checked) {
+  if (key !== 'parcels' && key !== 'maturities') return;
+  const f = getFilters();
+  const options = multiFilterOptions(key);
+  const choices = new Set(f[key] === null ? options : f[key]);
+  if (checked) choices.add(value); else choices.delete(value);
+  f[key] = choices.size === options.length ? null : options.filter(item => choices.has(item));
+  refreshActiveSectionList();
+  renderFilterSheet();
+}
+
+function setMultiFilterAll(key, checked) {
+  if (key !== 'parcels' && key !== 'maturities') return;
+  getFilters()[key] = checked ? null : [];
+  refreshActiveSectionList();
+  renderFilterSheet();
+}
+
+/** Les autres filtres restent à choix unique. */
+function chooseFilter(key, value) {
+  if (!['shape', 'preWork', 'pruningType', 'week'].includes(key)) return;
+  getFilters()[key] = value;
+  refreshActiveSectionList();
+  renderFilterSheet();
+}
+
+function resetFilters() {
+  state.filters = { parcels: null, maturities: null, shape: '', preWork: '', pruningType: '', week: '' };
+  refreshActiveSectionList();
+  renderFilterSheet();
+}
+
+window.openFilterSheet = openFilterSheet;
+window.closeFilterSheet = closeFilterSheet;
+window.chooseFilter = chooseFilter;
+window.toggleMultiFilter = toggleMultiFilter;
+window.setMultiFilterAll = setMultiFilterAll;
+window.resetFilters = resetFilters;
+
+/* ============================================================================
+   v26 - BASE VARIÉTALE UNIQUE
+   Une variété n'existe qu'une seule fois dans la base. Elle porte une ou
+   plusieurs plantations (parcelle + rang + arbres). Les enregistrements de
+   travail (éclaircissage, taille) restent attachés à chaque plantation.
+   ========================================================================== */
+
+const VARIETY_FIELDS = ['se', 'variety', 'denomination', 'clone', 'protection', 'maturityDate', 'typeFruit'];
+const VARIETY_MIRROR_ALWAYS = ['se', 'variety', 'denomination', 'clone', 'protection', 'typeFruit'];
+
+/** Clé d'identité stricte, utilisée pour les comparaisons exactes. */
+function varietyIdentityKey(source) {
+  return normalizeKey([source?.se, source?.variety, source?.clone].join('|'));
+}
+
+/** Numéro de variété normalisé : ni casse, ni accents, ni espaces, ni séparateurs.
+ *  « PLAT-5 », « plat 5 » et « PLAT5 » désignent donc la même variété. */
+function normalizeVarietyCode(value) {
+  return normalizeKey(value || '').replace(/[^a-z0-9]/g, '');
+}
+
+/** Deux fiches désignent-elles la même variété ?
+ *  Le numéro de variété fait foi à lui seul : il ne peut pas exister deux fois dans la base.
+ *  À défaut de numéro, la dénomination sert de repère. */
+function matchesVarietyIdentity(a, b) {
+  const av = normalizeVarietyCode(a?.variety);
+  const bv = normalizeVarietyCode(b?.variety);
+  if (av && bv) return av === bv;
+  if (av || bv) return false;
+  const ad = normalizeVarietyCode(a?.denomination);
+  const bd = normalizeVarietyCode(b?.denomination);
+  return !!ad && ad === bd;
+}
+
+/** Quantité d'informations portée par une fiche variété : sert à choisir laquelle garder. */
+function varietyInfoScore(entry) {
+  let score = 0;
+  VARIETY_FIELDS.forEach(f => { if (String(entry?.[f] ?? '').trim()) score += 1; });
+  score += (state.records || []).filter(r => r.varietyId === entry?.id).length * 2;
+  return score;
+}
+
+function makeVarietyId(source) {
+  const base = normalizeKey([source?.se, source?.variety, source?.clone].join('-')).slice(0, 40) || 'variete';
+  return `var-${base}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** Rattache chaque plantation à une variété du catalogue et harmonise les données variétales. */
+function ensureVarietyLinks() {
+  if (!Array.isArray(state.varieties)) state.varieties = [];
+  if (!Array.isArray(state.records)) state.records = [];
+
+  // 1. Chaque plantation est rattachée à un groupe variétal
+  const groups = state.varieties.map(v => ({ id: v.id, ref: v }));
+  state.records.forEach(r => {
+    if (r.varietyId && !groups.some(g => g.id === r.varietyId)) groups.push({ id: r.varietyId, ref: { ...r } });
+  });
+  state.records.forEach(r => {
+    let group = r.varietyId ? groups.find(g => g.id === r.varietyId) : null;
+    if (!group) group = groups.find(g => matchesVarietyIdentity(g.ref, r));
+    if (!group) {
+      group = { id: makeVarietyId(r), ref: { se: r.se, variety: r.variety, clone: r.clone, denomination: r.denomination } };
+      groups.push(group);
+    }
+    r.varietyId = group.id;
+  });
+
+  // 2. Le catalogue contient une entrée par variété rencontrée
+  const catalogue = new Map(state.varieties.map(v => [v.id, v]));
+  state.records.forEach(r => {
+    let entry = catalogue.get(r.varietyId);
+    if (!entry) {
+      entry = { id: r.varietyId };
+      VARIETY_FIELDS.forEach(f => { entry[f] = r[f] || ''; });
+      catalogue.set(entry.id, entry);
+    } else {
+      VARIETY_FIELDS.forEach(f => { if (!String(entry[f] ?? '').trim() && r[f]) entry[f] = r[f]; });
+    }
+  });
+  state.varieties = [...catalogue.values()];
+
+  // 2 bis. Un même numéro de variété ne peut exister qu'une fois :
+  // la fiche la plus complète est conservée, l'autre est supprimée après récupération de ses données.
+  const merged = [];
+  state.varieties.forEach(entry => {
+    const twinIndex = merged.findIndex(m => matchesVarietyIdentity(m, entry));
+    if (twinIndex < 0) { merged.push(entry); return; }
+    const twin = merged[twinIndex];
+    const keeper = varietyInfoScore(entry) > varietyInfoScore(twin) ? entry : twin;
+    const dropped = keeper === twin ? entry : twin;
+    VARIETY_FIELDS.forEach(f => { if (!String(keeper[f] ?? '').trim() && dropped[f]) keeper[f] = dropped[f]; });
+    state.records.forEach(r => { if (r.varietyId === dropped.id) r.varietyId = keeper.id; });
+    if (state.varietyEditId === dropped.id) state.varietyEditId = keeper.id;
+    merged[twinIndex] = keeper;
+    catalogue.delete(dropped.id);
+  });
+  state.varieties = merged;
+
+  // 2 ter. Deux plantations identiques (même variété, même parcelle, même position) n'en font qu'une
+  const positions = new Map();
+  const duplicates = [];
+  state.records.forEach(r => {
+    const key = [r.varietyId, normalizeKey(r.parcel || r.group || ''), normalizeKey(r.row), normalizeKey(r.treeStart)].join('|');
+    if (!normalizeKey(r.row) && !normalizeKey(r.treeStart)) return;
+    const first = positions.get(key);
+    if (!first) { positions.set(key, r); return; }
+    const keep = recordInfoScore(r) > recordInfoScore(first) ? r : first;
+    const drop = keep === first ? r : first;
+    positions.set(key, keep);
+    duplicates.push(drop.id);
+  });
+  if (duplicates.length) state.records = state.records.filter(r => !duplicates.includes(r.id));
+
+  // 3. Les plantations reflètent les données de leur variété
+  state.records.forEach(r => {
+    const entry = catalogue.get(r.varietyId);
+    if (!entry) return;
+    VARIETY_MIRROR_ALWAYS.forEach(f => { if (entry[f]) r[f] = entry[f]; });
+    if (!String(r.maturityDate ?? '').trim() && entry.maturityDate) r.maturityDate = entry.maturityDate;
+  });
+
+  return state.varieties;
+}
+
+/** Quantité de saisie portée par une plantation : sert à choisir laquelle garder en cas de doublon. */
+function recordInfoScore(record) {
+  let score = 0;
+  ['maturityDate', 'treeEnd', 'treeCount', 'completionDate', 'comment', 'pruningDate', 'pruningType'].forEach(f => {
+    if (String(record?.[f] ?? '').trim()) score += 1;
+  });
+  if (record?.finished || record?.thinningFinished) score += 3;
+  if (record?.pruningFinished) score += 3;
+  if (getPruningCounts(record)) score += 2;
+  if (hasCompleteBranchCounts(record)) score += 3;
+  return score;
+}
+
+function getVarietyCatalogue() {
+  ensureVarietyLinks();
+  return state.varieties.slice().sort((a, b) => String(a.variety || '').localeCompare(String(b.variety || ''), 'fr'));
+}
+
+function getVarietyEntry(varietyId) {
+  ensureVarietyLinks();
+  return state.varieties.find(v => v.id === varietyId) || null;
+}
+
+function findVarietyByIdentity(source) {
+  ensureVarietyLinks();
+  return state.varieties.find(v => matchesVarietyIdentity(v, source)) || null;
+}
+
+function getPlantings(varietyId) {
+  return state.records.filter(r => r.varietyId === varietyId)
+    .sort((a, b) => String(a.parcel || '').localeCompare(String(b.parcel || '')) || num(a.row) - num(b.row) || num(a.treeStart) - num(b.treeStart));
+}
+
+function varietyTreeTotal(varietyId) {
+  return getPlantings(varietyId).reduce((sum, r) => sum + getWorkloadTreeCount(r), 0);
+}
+
+function varietyParcels(varietyId) {
+  return unique(getPlantings(varietyId).map(r => r.parcel || r.group || 'Sans parcelle'));
+}
+
+/** Applique les données d'une variété à toutes ses plantations. */
+function applyVarietyToPlantings(varietyId, changedFields = []) {
+  const entry = getVarietyEntry(varietyId);
+  if (!entry) return;
+  getPlantings(varietyId).forEach(r => {
+    VARIETY_MIRROR_ALWAYS.forEach(f => { if (entry[f]) r[f] = entry[f]; });
+    if (changedFields.includes('maturityDate')) r.maturityDate = entry.maturityDate || '';
+    else if (!String(r.maturityDate ?? '').trim() && entry.maturityDate) r.maturityDate = entry.maturityDate;
+    r.lastModified = new Date().toISOString();
+    recalculateRecord(r);
+  });
+}
+
+/* ------------------------------------------------------------ page variétés */
+
+function buildVarietySearchText(v) {
+  const plantings = getPlantings(v.id);
+  return [
+    v.se, v.variety, v.denomination, v.clone, v.protection,
+    v.maturityDate, displayDate(v.maturityDate),
+    ...plantings.map(r => `${r.parcel || ''} R${r.row || ''} A${r.treeStart || ''} ${r.treeEnd || ''}`)
+  ].filter(Boolean).join(' ');
+}
+
+function renderTreesManagement() {
+  lockViewportMobile();
+  if (!Array.isArray(state.customParcels)) state.customParcels = [];
+  state.currentView = 'trees';
+  ensureVarietyLinks();
+
+  const search = state.treesManagerSearch || '';
+  const q = normalizeKey(search);
+  const all = getVarietyCatalogue();
+  const varieties = q ? all.filter(v => normalizeKey(buildVarietySearchText(v)).includes(q)) : all;
+  const editEntry = state.varietyEditId ? getVarietyEntry(state.varietyEditId) : null;
+  const totalPlantings = state.records.length;
+
+  app.innerHTML = layoutHeader('Base variétale', 'Une fiche par variété, plusieurs parcelles possibles', true) + `
+    <main class="content grid">
+      <details class="card collapsible" ${editEntry ? 'open' : ''}>
+        <summary>${editEntry ? 'Modifier la variété' : 'Créer une variété'}</summary>
+        <div class="collapsible-body">
+          <div class="parcel-add-grid">
+            <div class="field"><label>SE</label><select id="varietyFormSe"><option value="">Choisir…</option>${SE_OPTIONS.map(se => `<option value="${escapeAttr(se)}" ${editEntry && editEntry.se === se ? 'selected' : ''}>${escapeHtml(se)}</option>`).join('')}</select></div>
+            <div class="field"><label>Variété</label><input id="varietyFormCode" type="text" placeholder="Code variété" value="${escapeAttr(editEntry?.variety || '')}"></div>
+            <div class="field full"><label>Dénomination</label><input id="varietyFormDenomination" type="text" placeholder="Nom commercial si disponible" value="${escapeAttr(editEntry?.denomination || '')}"></div>
+            <div class="field"><label>Clone</label><input id="varietyFormClone" type="text" placeholder="Facultatif" value="${escapeAttr(editEntry?.clone || '')}"></div>
+            <div class="field"><label>Protection</label><input id="varietyFormProtection" type="text" placeholder="Ex. COV" value="${escapeAttr(editEntry?.protection || '')}"></div>
+            <div class="field full"><label>Maturité</label><input id="varietyFormMaturity" type="date" value="${escapeAttr(editEntry?.maturityDate || '')}"></div>
+          </div>
+          <button class="btn primary full" style="margin-top:14px" onclick="saveVariety()">${editEntry ? 'Enregistrer la modification' : 'Ajouter la variété'}</button>
+          ${editEntry ? `<button type="button" class="btn red" style="margin-top:8px" onclick="deleteVariety('${escapeAttr(editEntry.id)}')">Supprimer cette variété</button><button class="parcel-cancel-edit-btn" type="button" onclick="cancelVarietyEdit()">Annuler la modification</button>` : ''}
+          <p class="prune-note">La ou les parcelles s’ajoutent ensuite sur la fiche de la variété.</p>
+        </div>
+      </details>
+
+      <section class="card manager-search-card">
+        <div class="searchbar">
+          <input id="treesManagerSearchInput" type="search" placeholder="🔍 Rechercher SE, variété, dénomination, parcelle, R10, A204…" value="${escapeAttr(search)}" />
+        </div>
+        <p class="manager-empty-hint">${varieties.length} variété(s) affichée(s) sur ${all.length} · ${totalPlantings} plantation(s) au total.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Variétés</h2>
+        <div class="variety-list">
+          ${varieties.length ? varieties.map(varietyCard).join('') : '<div class="empty">Aucune variété ne correspond à la recherche.</div>'}
+        </div>
+      </section>
+    </main>`;
+
+  document.getElementById('treesManagerSearchInput')?.addEventListener('input', e => {
+    state.treesManagerSearch = e.target.value;
+    renderTreesManagement();
+    requestAnimationFrame(() => {
+      const input = document.getElementById('treesManagerSearchInput');
+      if (input) {
+        input.focus();
+        const len = input.value.length;
+        input.setSelectionRange?.(len, len);
+      }
+    });
+  });
+}
+
+function varietyCard(v) {
+  const plantings = getPlantings(v.id);
+  const parcels = varietyParcels(v.id);
+  const trees = varietyTreeTotal(v.id);
+  const denom = v.denomination && normalizeKey(v.denomination) !== normalizeKey(v.variety) ? `<div class="parcel-added-meta">${escapeHtml(v.denomination)}</div>` : '';
+  const tags = [v.clone ? `Clone ${v.clone}` : '', v.protection || ''].filter(Boolean).join(' · ');
+  return `<article class="variety-card">
+    <div class="variety-head">
+      <div class="se-block ${seColorClass(v.se)}">${escapeHtml(v.se || '—')}</div>
+      <div class="variety-head-text">
+        <div class="parcel-added-title">${escapeHtml(v.variety || 'Sans variété')}</div>
+        ${denom}
+        <div class="parcel-added-meta">Maturité ${escapeHtml(displayDate(v.maturityDate))} · ${parcels.length} parcelle(s) · ${plantings.length} plantation(s) · ${trees} arbre(s)</div>
+        ${tags ? `<div class="parcel-added-meta">${escapeHtml(tags)}</div>` : ''}
+      </div>
+      <div class="parcel-row-actions">
+        <button class="parcel-edit-btn" onclick="editVariety('${escapeAttr(v.id)}')">Modifier</button>
+        <button type="button" class="parcel-delete-btn variety-delete-btn" title="Supprimer la variété et ses plantations" aria-label="Supprimer la variété ${escapeAttr(v.variety || '')}" onclick="deleteVariety('${escapeAttr(v.id)}')">Supprimer la variété</button>
+      </div>
+    </div>
+    <div class="planting-list">
+      ${plantings.length ? plantings.map(plantingRow).join('') : '<div class="planting-empty">Aucune parcelle attribuée à cette variété.</div>'}
+    </div>
+    <button class="btn secondary planting-add-btn" onclick="openPlantingEditor('${escapeAttr(v.id)}','')">＋ Ajouter une parcelle</button>
+  </article>`;
+}
+
+function plantingRow(r) {
+  const trees = r.treeCount || calculateTreeCount(r.treeStart, r.treeEnd) || '—';
+  const maturity = r.maturityDate ? ` · Mat. ${displayDate(r.maturityDate)}` : '';
+  return `<div class="planting-row">
+    <div class="planting-info">
+      <div class="planting-parcel">${escapeHtml(r.parcel || r.group || 'Sans parcelle')}</div>
+      <div class="planting-meta">${escapeHtml(formatTreePosition(r))} · ${escapeHtml(String(trees))} arbre(s)${escapeHtml(maturity)}</div>
+    </div>
+    <div class="parcel-row-actions">
+      <button class="parcel-edit-btn" onclick="openPlantingEditor('${escapeAttr(r.varietyId)}','${escapeAttr(r.id)}')">Modifier</button>
+      <button class="parcel-delete-btn" onclick="deletePlanting('${escapeAttr(r.id)}')">Supprimer</button>
+    </div>
+  </div>`;
+}
+
+/* -------------------------------------------------------- édition variété */
+
+async function saveVariety() {
+  const se = cleanCell(document.getElementById('varietyFormSe')?.value || '');
+  const variety = cleanCell(document.getElementById('varietyFormCode')?.value || '');
+  const denomination = cleanCell(document.getElementById('varietyFormDenomination')?.value || '');
+  const clone = cleanCell(document.getElementById('varietyFormClone')?.value || '');
+  const protection = cleanCell(document.getElementById('varietyFormProtection')?.value || '');
+  const maturityDate = normalizeDate(document.getElementById('varietyFormMaturity')?.value || '');
+
+  if (!se) return showToast('Champ obligatoire : SE');
+  if (!variety) return showToast('Champ obligatoire : Variété');
+
+  ensureVarietyLinks();
+  const editing = state.varietyEditId ? getVarietyEntry(state.varietyEditId) : null;
+  const twin = state.varieties.find(v => v.id !== (editing?.id || '') && matchesVarietyIdentity(v, { se, variety, clone }));
+  if (twin) return showToast(`${twin.variety} existe déjà dans la base`);
+
+  if (editing) {
+    const changed = [];
+    if (editing.maturityDate !== maturityDate) changed.push('maturityDate');
+    Object.assign(editing, { se, variety, denomination, clone, protection, maturityDate });
+    applyVarietyToPlantings(editing.id, changed);
+    state.varietyEditId = null;
+    showToast('Variété modifiée');
+  } else {
+    const entry = { id: makeVarietyId({ se, variety, clone }), se, variety, denomination, clone, protection, maturityDate, typeFruit: '' };
+    state.varieties.push(entry);
+    showToast('Variété créée');
+  }
+  await saveLocalData(false);
+  renderTreesManagement();
+}
+
+function editVariety(varietyId) {
+  state.varietyEditId = varietyId;
+  renderTreesManagement();
+  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+}
+
+function cancelVarietyEdit() {
+  state.varietyEditId = null;
+  renderTreesManagement();
+}
+
+/** Demande de suppression : affiche l'impact avant toute modification. */
+function deleteVariety(varietyId) {
+  const entry = getVarietyEntry(varietyId);
+  if (!entry) return;
+  const plantings = getPlantings(varietyId);
+  const parcels = varietyParcels(varietyId);
+  const label = String(entry.variety || entry.denomination || 'Cette variété');
+  document.getElementById('varietyDeleteDialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'varietyDeleteDialog';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true" aria-labelledby="varietyDeleteTitle">
+    <div class="prune-sheet-head">
+      <h2 class="prune-sheet-title" id="varietyDeleteTitle">Supprimer une variété</h2>
+      <button type="button" class="menu-close-btn" aria-label="Fermer" onclick="closeVarietyDeleteDialog()">×</button>
+    </div>
+    <p><strong>${escapeHtml(label)}</strong>${entry.denomination && entry.denomination !== entry.variety ? ' · ' + escapeHtml(entry.denomination) : ''}</p>
+    <div class="variety-danger-info">
+      <strong>Suppression définitive de la base variétale</strong>
+      <div>Cette action supprimera ${plantings.length} plantation(s) dans ${parcels.length} parcelle(s) et toutes les données de suivi éclaircissage / taille correspondantes.</div>
+      ${parcels.length ? `<div style="margin-top:6px">Parcelles concernées : ${escapeHtml(parcels.join(', '))}</div>` : ''}
+      <div style="margin-top:8px">Les autres variétés et leurs suivis ne seront pas affectés. Les archives de l'onglet Historique sont conservées.</div>
+    </div>
+    ${plantings.length ? `<div class="variety-deletion-confirm">
+      <label for="varietyDeleteInput">Saisir SUPPRIMER pour confirmer</label>
+      <input id="varietyDeleteInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="SUPPRIMER" />
+    </div>` : ''}
+    <div class="variety-delete-actions">
+      <button type="button" class="btn secondary" onclick="closeVarietyDeleteDialog()">Annuler</button>
+      <button type="button" id="varietyDeleteFinalButton" class="btn red" onclick="confirmVarietyDeletion('${escapeAttr(varietyId)}')" ${plantings.length ? 'disabled' : ''}>Supprimer définitivement</button>
+    </div>
+  </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeVarietyDeleteDialog(); });
+  document.body.appendChild(overlay);
+  overlay.querySelector('#varietyDeleteInput')?.addEventListener('input', e => {
+    const button = overlay.querySelector('#varietyDeleteFinalButton');
+    if (button) button.disabled = e.target.value.trim() !== 'SUPPRIMER';
+  });
+}
+
+function closeVarietyDeleteDialog() {
+  document.getElementById('varietyDeleteDialog')?.remove();
+}
+
+/** N'efface la fiche et les plantations liées qu'après une validation explicite. */
+async function confirmVarietyDeletion(varietyId) {
+  const overlay = document.getElementById('varietyDeleteDialog');
+  if (!overlay) return;
+  const entry = getVarietyEntry(varietyId);
+  if (!entry) { closeVarietyDeleteDialog(); return; }
+  const plantings = getPlantings(varietyId);
+  if (plantings.length && overlay.querySelector('#varietyDeleteInput')?.value.trim() !== 'SUPPRIMER') return;
+  const confirmButton = overlay.querySelector('#varietyDeleteFinalButton');
+  if (confirmButton) confirmButton.disabled = true;
+  state.records = state.records.filter(r => r.varietyId !== varietyId);
+  state.varieties = state.varieties.filter(v => v.id !== varietyId);
+  if (state.varietyEditId === varietyId) state.varietyEditId = null;
+  await saveLocalData(false);
+  closeVarietyDeleteDialog();
+  renderTreesManagement();
+  showToast(`Variété ${entry.variety || ''} supprimée`);
+}
+
+/* ------------------------------------------------------ édition plantation */
+
+function openPlantingEditor(varietyId, plantingId) {
+  const entry = getVarietyEntry(varietyId);
+  if (!entry) return;
+  const planting = plantingId ? state.records.find(r => r.id === plantingId) : null;
+  const parcels = getAllParcels();
+  if (!parcels.length) return showToast('Créer une parcelle d’abord');
+  const selected = planting?.parcel || state.parcelManagerSelected || parcels[0];
+
+  document.getElementById('plantingEditor')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'plantingEditor';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true">
+      <div class="prune-sheet-head">
+        <h2 class="prune-sheet-title">${planting ? 'Modifier la parcelle' : 'Ajouter une parcelle'}</h2>
+        <button class="menu-close-btn" onclick="closePlantingEditor()" aria-label="Fermer">×</button>
+      </div>
+      <p class="muted small" style="margin:0 0 12px">${escapeHtml(entry.variety || 'Variété')}${entry.denomination ? ` · ${escapeHtml(entry.denomination)}` : ''}</p>
+      <div class="parcel-add-grid">
+        <div class="field full"><label>Parcelle</label><select id="plantingParcel">${parcels.map(p => `<option value="${escapeAttr(p)}" ${p === selected ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
+        <div class="field"><label>Rang</label><input id="plantingRow" type="number" inputmode="numeric" placeholder="Ex. 11" value="${escapeAttr(planting?.row || '')}"></div>
+        <div class="field"><label>Nb Arbres</label><input id="plantingCount" type="number" inputmode="numeric" placeholder="Ex. 5" value="${escapeAttr(planting?.treeCount || '')}"></div>
+        <div class="field"><label>Arbre de début</label><input id="plantingStart" type="number" inputmode="numeric" placeholder="Ex. 197" value="${escapeAttr(planting?.treeStart || '')}"></div>
+        <div class="field"><label>Arbre de fin</label><input id="plantingEnd" type="number" inputmode="numeric" placeholder="Ex. 201" value="${escapeAttr(planting?.treeEnd || '')}"></div>
+        <div class="field full"><label>Maturité sur cette parcelle</label><input id="plantingMaturity" type="date" value="${escapeAttr(planting?.maturityDate || entry.maturityDate || '')}"></div>
+      </div>
+      <button class="btn green" style="margin-top:14px" onclick="savePlanting('${escapeAttr(varietyId)}','${escapeAttr(plantingId || '')}')">${planting ? 'Enregistrer' : 'Ajouter'}</button>
+      <p class="prune-note">La maturité peut différer d’une parcelle à l’autre ; elle sert au calcul de la date d’éclaircissage de cette plantation.</p>
+    </section>`;
+  overlay.addEventListener('click', event => { if (event.target === overlay) closePlantingEditor(); });
+  document.body.appendChild(overlay);
+}
+
+function closePlantingEditor() {
+  document.getElementById('plantingEditor')?.remove();
+}
+
+async function savePlanting(varietyId, plantingId) {
+  const entry = getVarietyEntry(varietyId);
+  if (!entry) return;
+  const parcel = String(document.getElementById('plantingParcel')?.value || '').trim();
+  const row = cleanCell(document.getElementById('plantingRow')?.value || '');
+  const treeStart = cleanCell(document.getElementById('plantingStart')?.value || '');
+  const treeEndRaw = cleanCell(document.getElementById('plantingEnd')?.value || '');
+  const countRaw = cleanCell(document.getElementById('plantingCount')?.value || '');
+  const maturityDate = normalizeDate(document.getElementById('plantingMaturity')?.value || '');
+
+  if (!parcel) return showToast('Choisir une parcelle');
+  if (!row) return showToast('Champ obligatoire : Rang');
+  if (!treeStart) return showToast('Champ obligatoire : Arbre de début');
+  const treeEnd = treeEndRaw || treeStart;
+  if (num(treeEnd) < num(treeStart)) return showToast('Arbre de fin inférieur au début');
+  const treeCount = countRaw || calculateTreeCount(treeStart, treeEnd) || '';
+
+  const twin = state.records.find(r => r.id !== plantingId && r.varietyId === varietyId
+    && String(r.parcel || '') === parcel && normalizeKey(r.row) === normalizeKey(row) && normalizeKey(r.treeStart) === normalizeKey(treeStart));
+  if (twin) return showToast('Cette plantation existe déjà');
+
+  const occupied = state.records.find(r => r.id !== plantingId && r.varietyId !== varietyId
+    && String(r.parcel || '') === parcel && normalizeKey(r.row) === normalizeKey(row) && normalizeKey(r.treeStart) === normalizeKey(treeStart));
+  if (occupied && !confirm(`La position R${row} A${treeStart} est déjà occupée par ${occupied.variety || 'une autre variété'}. Continuer ?`)) return;
+
+  const existing = plantingId ? state.records.find(r => r.id === plantingId) : null;
+  if (existing) {
+    Object.assign(existing, { parcel, group: parcel, row, treeStart, treeEnd, treeCount, maturityDate, lastModified: new Date().toISOString() });
+    recalculateRecord(existing);
+    showToast('Plantation modifiée');
+  } else {
+    state.records.push(createPlantingRecord(entry, { parcel, row, treeStart, treeEnd, treeCount, maturityDate }));
+    showToast('Parcelle ajoutée à la variété');
+  }
+  if (!state.customParcels.includes(parcel) && !getAllParcels().includes(parcel)) state.customParcels.push(parcel);
+  ensureVarietyLinks();
+  await saveLocalData(false);
+  closePlantingEditor();
+  renderTreesManagement();
+}
+
+/** Crée une plantation rattachée à une variété du catalogue. */
+function createPlantingRecord(entry, position) {
+  return recalculateRecord({
+    id: `plant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    varietyId: entry.id,
+    group: position.parcel,
+    parcel: position.parcel,
+    se: entry.se || '',
+    variety: entry.variety || '',
+    denomination: entry.denomination || '',
+    clone: entry.clone || '',
+    protection: entry.protection || '',
+    typeFruit: entry.typeFruit || '',
+    row: position.row || '',
+    treeStart: position.treeStart || '',
+    treeEnd: position.treeEnd || position.treeStart || '',
+    treeCount: position.treeCount || calculateTreeCount(position.treeStart, position.treeEnd) || '',
+    maturityDate: position.maturityDate || entry.maturityDate || '',
+    importedThinningDate: '',
+    manualDate: '',
+    completionDate: '',
+    observationDate: '',
+    stoneHardeningDate: '',
+    recommendedLoad: '',
+    historicalRate: '',
+    historicalClass: '',
+    status: 'à observer',
+    finished: false,
+    degrouping: false,
+    comment: '',
+    misc: '',
+    branches: emptyBranches(),
+    lastModified: new Date().toISOString()
+  });
+}
+
+async function deletePlanting(plantingId) {
+  const record = state.records.find(r => r.id === plantingId);
+  if (!record) return;
+  if (!confirm(`Supprimer la plantation ${record.parcel || ''} ${formatTreePosition(record)} ? Les observations liées seront perdues.`)) return;
+  state.records = state.records.filter(r => r.id !== plantingId);
+  await saveLocalData(false);
+  showToast('Plantation supprimée');
+  renderTreesManagement();
+}
+
+window.saveVariety = saveVariety;
+window.editVariety = editVariety;
+window.cancelVarietyEdit = cancelVarietyEdit;
+window.deleteVariety = deleteVariety;
+window.closeVarietyDeleteDialog = closeVarietyDeleteDialog;
+window.confirmVarietyDeletion = confirmVarietyDeletion;
+window.openPlantingEditor = openPlantingEditor;
+window.closePlantingEditor = closePlantingEditor;
+window.savePlanting = savePlanting;
+window.deletePlanting = deletePlanting;
+
+/* ============================================================================
+   v25 - IMPORT DU PLAN D'UNE PARCELLE
+   Depuis la page Parcelles, import d'un fichier Excel décrivant le plan :
+   SE / Variété / Dénomination / Clone / Protection / Rang / Arbre de début /
+   Arbre de fin / Nb Arbres. Les lignes sont rattachées à la parcelle choisie.
+   ========================================================================== */
+
+const PARCEL_PLAN_COLUMNS = ['SE', 'Variété', 'Dénomination', 'Clone', 'Protection', 'Rang', 'Arbre de début', 'Arbre de fin', 'Nb Arbres'];
+
+const PARCEL_PLAN_ALIASES = {
+  se: ['se', 'code se', 'sous espece', 'sous-espece', 'type'],
+  variety: ['variete', 'variété', 'cultivar', 'reference', 'référence', 'code variete', 'code'],
+  denomination: ['denomination', 'dénomination', 'nom commercial', 'nom'],
+  clone: ['clone', 'n clone', 'numero clone'],
+  protection: ['protection', 'protection variete', 'obtention', 'pi', 'cov', 'statut protection'],
+  row: ['rang', 'rangee', 'rangée', 'row', 'n rang'],
+  treeStart: ['arbre de debut', 'arbre de début', 'arbre debut', 'debut', 'début', 'premier arbre', 'start tree'],
+  treeEnd: ['arbre de fin', 'arbre fin', 'fin', 'dernier arbre', 'end tree'],
+  treeCount: ['nb arbres', 'nb arbre', 'nombre arbres', 'nombre d arbres', 'nombre d arbre', 'effectif'],
+  maturityDate: ['mat', 'maturite', 'maturité', 'date maturite', 'date maturité', 'date recolte', 'date récolte']
+};
+
+const PARCEL_PLAN_REQUIRED = ['variety', 'row', 'treeStart'];
+
+/** Construit la correspondance colonne -> champ pour un plan de parcelle. */
+function createPlanFieldMap(header) {
+  const map = {};
+  const used = new Set();
+  Object.entries(PARCEL_PLAN_ALIASES).forEach(([field, aliases]) => {
+    const normalized = aliases.map(normalizeColumnName);
+    let idx = header.findIndex((h, i) => !used.has(i) && h && normalized.includes(h));
+    if (idx < 0) idx = header.findIndex((h, i) => !used.has(i) && h && normalized.some(a => h === a || h.startsWith(a + ' ') || a.startsWith(h + ' ')));
+    if (idx >= 0) used.add(idx);
+    map[field] = idx >= 0 ? idx : null;
+  });
+  return map;
+}
+
+/** Repère la ligne d'en-tête d'un plan de parcelle (indépendante de la maturité). */
+function detectPlanHeaderRow(rows) {
+  let bestIndex = -1;
+  let bestScore = 0;
+  rows.slice(0, 30).forEach((row, idx) => {
+    if (!Array.isArray(row)) return;
+    const normalized = row.map(normalizeColumnName);
+    const map = createPlanFieldMap(normalized);
+    let score = Object.values(map).filter(v => v !== null).length;
+    if (map.variety !== null) score += 3;
+    if (map.row !== null) score += 2;
+    if (map.treeStart !== null) score += 2;
+    if (score > bestScore) { bestScore = score; bestIndex = idx; }
+  });
+  return bestScore >= 4 ? bestIndex : -1;
+}
+
+/** Lit le classeur et prépare les lignes du plan pour la parcelle visée. */
+function parseParcelPlan(workbook, parcel) {
+  const result = { parcel, sheetName: '', rows: [], issues: [], missingColumns: [], detectedColumns: [] };
+  const preferred = workbook.SheetNames.find(name => normalizeKey(name) === normalizeKey(parcel));
+  const order = preferred ? [preferred, ...workbook.SheetNames.filter(n => n !== preferred)] : workbook.SheetNames;
+
+  for (const sheetName of order) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+    if (!rows.length) continue;
+    const headerIndex = detectPlanHeaderRow(rows);
+    if (headerIndex < 0) continue;
+
+    const header = rows[headerIndex].map(normalizeColumnName);
+    const map = createPlanFieldMap(header);
+    result.sheetName = sheetName;
+    result.detectedColumns = Object.entries(map).filter(([, idx]) => idx !== null).map(([field]) => field);
+    result.missingColumns = Object.entries(map).filter(([field, idx]) => idx === null && field !== 'maturityDate').map(([field]) => field);
+
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every(cell => isBlankOrExcelError(cell))) continue;
+      const variety = cleanCell(getCell(row, header, map.variety));
+      const se = cleanCell(getCell(row, header, map.se));
+      const rowNumber = cleanCell(getCell(row, header, map.row));
+      const treeStart = cleanCell(getCell(row, header, map.treeStart));
+      const treeEnd = cleanCell(getCell(row, header, map.treeEnd));
+      let treeCount = cleanCell(getCell(row, header, map.treeCount));
+      if (!variety && !se && !rowNumber && !treeStart) continue;
+
+      const expected = calculateTreeCount(treeStart, treeEnd);
+      const line = {
+        line: i + 1,
+        se,
+        variety,
+        denomination: cleanCell(getCell(row, header, map.denomination)),
+        clone: cleanCell(getCell(row, header, map.clone)),
+        protection: cleanCell(getCell(row, header, map.protection)),
+        row: rowNumber,
+        treeStart,
+        treeEnd,
+        treeCount: treeCount || expected || '',
+        maturityDate: normalizeDate(getCell(row, header, map.maturityDate)),
+        issues: []
+      };
+      if (!line.variety) line.issues.push('variété manquante');
+      if (!line.se) line.issues.push('SE manquant');
+      if (!line.row) line.issues.push('rang manquant');
+      if (!line.treeStart) line.issues.push('arbre de début manquant');
+      if (treeCount && expected && num(treeCount) !== Number(expected)) {
+        line.issues.push(`Nb Arbres ${treeCount} ≠ ${expected} attendu(s) entre A${treeStart} et A${treeEnd}`);
+      }
+      if (line.treeEnd && num(line.treeEnd) < num(line.treeStart)) line.issues.push('arbre de fin inférieur au début');
+      result.rows.push(line);
+    }
+    break;
+  }
+
+  // Doublons de position à l'intérieur du fichier
+  const seen = new Map();
+  result.rows.forEach(line => {
+    const key = `${normalizeKey(line.row)}|${normalizeKey(line.treeStart)}`;
+    if (line.row && line.treeStart) {
+      if (seen.has(key)) line.issues.push(`même position que la ligne ${seen.get(key)}`);
+      else seen.set(key, line.line);
+    }
+  });
+  result.issues = result.rows.filter(l => l.issues.length);
+  result.valid = result.rows.filter(l => PARCEL_PLAN_REQUIRED.every(f => String(l[f] || '').trim() !== ''));
+  return result;
+}
+
+/* --------------------------------------- rapprochement avec la base variétale */
+
+function samePlanPosition(a, b) {
+  return normalizeKey(a?.row || '') === normalizeKey(b?.row || '')
+    && normalizeKey(a?.treeStart || '') === normalizeKey(b?.treeStart || '');
+}
+
+/** Retrouve la plantation déjà enregistrée qui correspond à une ligne de plan. */
+function findExistingForPlanLine(line, parcel, pool) {
+  const records = pool || state.records;
+  const entry = findVarietyByIdentity(line);
+  const inParcel = records.filter(r => String(r.parcel || '') === String(parcel));
+  if (entry) {
+    const position = inParcel.find(r => r.varietyId === entry.id && samePlanPosition(r, line));
+    if (position) return { record: position, kind: 'position', varietyId: entry.id };
+    const sameParcel = inParcel.find(r => r.varietyId === entry.id);
+    if (sameParcel) return { record: sameParcel, kind: 'sameParcel', varietyId: entry.id };
+    return { record: null, kind: 'knownVariety', varietyId: entry.id };
+  }
+  const taken = inParcel.find(r => samePlanPosition(r, line));
+  if (taken) return { record: taken, kind: 'positionTaken', varietyId: taken.varietyId };
+  return null;
+}
+
+/** Annote chaque ligne valide du plan avec la variété déjà présente correspondante. */
+function annotatePlanMatches(preview) {
+  const pool = state.records;
+  preview.valid.forEach(line => {
+    const match = findExistingForPlanLine(line, preview.parcel, pool);
+    line.match = match ? {
+      id: match.record ? match.record.id : '',
+      kind: match.kind,
+      varietyId: match.varietyId || '',
+      parcel: match.record ? (match.record.parcel || '') : '',
+      variety: match.record ? (match.record.variety || '') : ''
+    } : null;
+  });
+  preview.counts = {
+    nouvelles: preview.valid.filter(l => !l.match).length,
+    plantationsConnues: preview.valid.filter(l => l.match && (l.match.kind === 'position' || l.match.kind === 'sameParcel')).length,
+    varietesConnues: preview.valid.filter(l => l.match && l.match.kind === 'knownVariety').length,
+    positionOccupee: preview.valid.filter(l => l.match && l.match.kind === 'positionTaken').length
+  };
+  return preview;
+}
+
+/** Met à jour une variété existante avec les informations du plan, sans toucher aux observations. */
+function updateRecordFromPlanLine(record, line, movePosition) {
+  const oldKey = recordHistoryKey(record);
+  if (!record.se && line.se) record.se = line.se;
+  if (line.denomination) record.denomination = line.denomination;
+  if (line.clone) record.clone = line.clone;
+  if (line.protection) record.protection = line.protection;
+  if (!record.maturityDate && line.maturityDate) record.maturityDate = line.maturityDate;
+  if (movePosition) {
+    if (line.row) record.row = line.row;
+    if (line.treeStart) record.treeStart = line.treeStart;
+    if (line.treeEnd) record.treeEnd = line.treeEnd;
+    record.treeCount = line.treeCount || calculateTreeCount(record.treeStart, record.treeEnd) || record.treeCount;
+  }
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  const newKey = recordHistoryKey(record);
+  if (oldKey !== newKey && Array.isArray(state.history)) {
+    state.history.forEach(h => { if (String(h.key) === oldKey) h.key = newKey; });
+  }
+  return record;
+}
+
+/* -------------------------------------------------------------- interface */
+
+function openParcelPlanImport(parcel) {
+  state.parcelPlanTarget = parcel;
+  const input = document.getElementById('parcelPlanFile');
+  if (!input) return showToast('Import indisponible');
+  input.value = '';
+  input.click();
+}
+
+async function handleParcelPlanFile(event) {
+  const file = event.target.files && event.target.files[0];
+  const parcel = state.parcelPlanTarget;
+  event.target.value = '';
+  if (!file || !parcel) return;
+  if (!window.XLSX) return showToast('SheetJS non disponible');
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: true });
+    const preview = annotatePlanMatches(parseParcelPlan(workbook, parcel));
+    preview.fileName = file.name;
+    if (!preview.rows.length) return showToast('Aucune ligne de plan détectée');
+    state.parcelPlanPreview = preview;
+    renderParcelPlanPreview();
+  } catch (err) {
+    console.error('Import plan parcelle', err);
+    showToast('Erreur pendant la lecture du fichier');
+  }
+}
+
+function planMatchLabel(match, parcel) {
+  if (!match) return '';
+  if (match.kind === 'position') return `plantation déjà enregistrée dans ${parcel}`;
+  if (match.kind === 'sameParcel') return `déjà plantée dans ${parcel} à une autre position`;
+  if (match.kind === 'knownVariety') return 'variété déjà en base : nouvelle parcelle rattachée à sa fiche';
+  if (match.kind === 'positionTaken') return `position déjà occupée par ${match.variety || 'une autre variété'}`;
+  return '';
+}
+
+function planFieldLabel(field) {
+  return {
+    se: 'SE', variety: 'Variété', denomination: 'Dénomination', clone: 'Clone', protection: 'Protection',
+    row: 'Rang', treeStart: 'Arbre de début', treeEnd: 'Arbre de fin', treeCount: 'Nb Arbres', maturityDate: 'Maturité'
+  }[field] || field;
+}
+
+function renderParcelPlanPreview() {
+  const preview = state.parcelPlanPreview;
+  if (!preview) return;
+  annotatePlanMatches(preview);
+  const counts = preview.counts;
+  const matched = preview.valid.filter(l => l.match);
+  const matchDetails = matched.length ? `<details class="collapsible" style="margin-top:8px"><summary class="plan-match-summary">Voir le détail</summary><div>
+    ${matched.slice(0, 10).map(l => `<div class="plan-issue">${escapeHtml(l.variety || l.denomination || '(sans nom)')} — ${escapeHtml(planMatchLabel(l.match, preview.parcel))}</div>`).join('')}
+    ${matched.length > 10 ? `<p class="prune-note">… et ${matched.length - 10} autre(s).</p>` : ''}
+  </div></details>` : '';
+  const existing = state.records.filter(r => String(r.parcel || '') === String(preview.parcel)).length;
+  const trees = preview.valid.reduce((sum, l) => sum + (num(l.treeCount) < 999999 ? num(l.treeCount) : 0), 0);
+  const ignored = preview.rows.length - preview.valid.length;
+
+  document.getElementById('parcelPlanSheet')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'parcelPlanSheet';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true">
+      <div class="prune-sheet-head">
+        <h2 class="prune-sheet-title">Plan de ${escapeHtml(preview.parcel)}</h2>
+        <button class="menu-close-btn" onclick="closeParcelPlanPreview()" aria-label="Fermer">×</button>
+      </div>
+      <p class="muted small" style="margin:0 0 10px">${escapeHtml(preview.fileName || 'Fichier')}${preview.sheetName ? ` · feuille « ${escapeHtml(preview.sheetName)} »` : ''}</p>
+      <div class="read-grid">
+        ${readTile('Lignes lues', preview.rows.length)}
+        ${readTile('Variétés valides', preview.valid.length)}
+        ${readTile('Arbres', trees || '—')}
+        ${readTile('Déjà en base', existing)}
+      </div>
+      ${counts.plantationsConnues || counts.varietesConnues || counts.positionOccupee ? `<div class="plan-match-box">
+        <div class="plan-match-title">Variétés déjà présentes dans la base</div>
+        ${counts.varietesConnues ? `<div class="plan-match-line">• ${counts.varietesConnues} variété(s) connue(s) : cette parcelle sera ajoutée à leur fiche, sans doublon</div>` : ''}
+        ${counts.plantationsConnues ? `<div class="plan-match-line">• ${counts.plantationsConnues} plantation(s) déjà enregistrée(s) dans ${escapeHtml(preview.parcel)} : mise à jour</div>` : ''}
+        ${counts.positionOccupee ? `<div class="plan-match-line">• ${counts.positionOccupee} position(s) occupée(s) par une autre variété</div>` : ''}
+        ${matchDetails}
+      </div>` : ''}
+      ${preview.missingColumns.length ? `<div class="alert-item">Colonnes non trouvées : ${escapeHtml(preview.missingColumns.map(planFieldLabel).join(', '))}. Ces informations resteront vides.</div>` : ''}
+      ${ignored ? `<div class="alert-item">${ignored} ligne(s) sans variété, rang ou arbre de début seront ignorées.</div>` : ''}
+      ${preview.issues.length ? `<details class="card collapsible" style="margin-top:10px"><summary>${preview.issues.length} ligne(s) à vérifier</summary><div class="collapsible-body">
+        ${preview.issues.slice(0, 12).map(l => `<div class="plan-issue"><strong>L${l.line}</strong> ${escapeHtml(l.variety || '(sans variété)')} — ${escapeHtml(l.issues.join(' · '))}</div>`).join('')}
+        ${preview.issues.length > 12 ? `<p class="prune-note">… et ${preview.issues.length - 12} autre(s).</p>` : ''}
+      </div></details>` : ''}
+      <div class="plan-preview-table">
+        <div class="plan-preview-head"><div>SE</div><div>Variété</div><div>Position</div><div>Arb.</div></div>
+        ${preview.valid.slice(0, 6).map(l => `<div class="plan-preview-row">
+          <div>${escapeHtml(l.se || '—')}</div>
+          <div>${escapeHtml(l.variety)}${l.denomination ? `<span class="muted small"> · ${escapeHtml(l.denomination)}</span>` : ''}</div>
+          <div>R${escapeHtml(l.row || '—')} · A${escapeHtml(l.treeStart || '—')}${l.treeEnd && String(l.treeEnd) !== String(l.treeStart) ? '-' + escapeHtml(l.treeEnd) : ''}</div>
+          <div>${escapeHtml(l.treeCount || '—')}</div>
+        </div>`).join('')}
+        ${preview.valid.length > 6 ? `<p class="prune-note">… et ${preview.valid.length - 6} autre(s) ligne(s).</p>` : ''}
+      </div>
+      <button class="btn green" style="margin-top:14px" onclick="applyParcelPlanImport('merge')" ${preview.valid.length ? '' : 'disabled'}>Ajouter au plan existant</button>
+      <button class="btn secondary" style="margin-top:8px;color:var(--red)" onclick="applyParcelPlanImport('replace')" ${preview.valid.length ? '' : 'disabled'}>Le plan fait référence (supprimer les absents)</button>
+      <p class="prune-note">Les variétés déjà connues gardent leur maturité, leur historique et leurs observations : seules les informations du plan sont complétées.</p>
+    </section>`;
+  overlay.addEventListener('click', event => { if (event.target === overlay) closeParcelPlanPreview(); });
+  document.body.appendChild(overlay);
+}
+
+function closeParcelPlanPreview() {
+  state.parcelPlanPreview = null;
+  state.parcelPlanTarget = null;
+  document.getElementById('parcelPlanSheet')?.remove();
+}
+
+async function applyParcelPlanImport(importMode) {
+  const preview = state.parcelPlanPreview;
+  if (!preview || !preview.valid.length) return;
+  annotatePlanMatches(preview);
+  const parcel = preview.parcel;
+
+  // Mode remplacement : le fichier fait référence. Les variétés de la parcelle absentes du plan
+  // sont supprimées, celles qui y figurent sont mises à jour (leurs observations sont conservées).
+  if (importMode === 'replace') {
+    const inParcel = state.records.filter(r => String(r.parcel || '') === String(parcel));
+    const kept = new Set(preview.valid.map(l => l.match && l.match.id ? l.match.id : null).filter(Boolean));
+    const removed = inParcel.filter(r => !kept.has(r.id));
+    if (removed.length && !confirm(`Remplacer le plan de ${parcel} ? ${removed.length} variété(s) absente(s) du fichier seront supprimées (leurs observations aussi).`)) return;
+    state.records = state.records.filter(r => String(r.parcel || '') !== String(parcel) || kept.has(r.id));
+  }
+
+  let added = 0;
+  let updated = 0;
+  let newVarieties = 0;
+  let conflicts = 0;
+
+  preview.valid.forEach(line => {
+    const match = findExistingForPlanLine(line, parcel);
+    // Plantation déjà enregistrée : on la met à jour, jamais de doublon.
+    if (match && (match.kind === 'position' || match.kind === 'sameParcel')) {
+      updateRecordFromPlanLine(match.record, line, true);
+      updated += 1;
+      return;
+    }
+    // Position déjà occupée par une autre variété : on ne crée rien, la ligne est signalée.
+    if (match && match.kind === 'positionTaken') { conflicts += 1; return; }
+    // Variété déjà en base : on rattache simplement cette parcelle à sa fiche.
+    let entry = match && match.varietyId && match.kind === 'knownVariety' ? getVarietyEntry(match.varietyId) : findVarietyByIdentity(line);
+    if (!entry) {
+      entry = {
+        id: makeVarietyId(line),
+        se: line.se || '',
+        variety: line.variety || '',
+        denomination: line.denomination || '',
+        clone: line.clone || '',
+        protection: line.protection || '',
+        maturityDate: line.maturityDate || '',
+        typeFruit: ''
+      };
+      state.varieties.push(entry);
+      newVarieties += 1;
+    } else {
+      if (line.denomination) entry.denomination = line.denomination;
+      if (line.clone && !entry.clone) entry.clone = line.clone;
+      if (line.protection) entry.protection = line.protection;
+      if (!entry.maturityDate && line.maturityDate) entry.maturityDate = line.maturityDate;
+    }
+    state.records.push(createPlantingRecord(entry, {
+      parcel,
+      row: line.row,
+      treeStart: line.treeStart,
+      treeEnd: line.treeEnd || line.treeStart,
+      treeCount: line.treeCount,
+      maturityDate: line.maturityDate || entry.maturityDate || ''
+    }));
+    added += 1;
+  });
+  ensureVarietyLinks();
+
+  if (!state.customParcels.includes(parcel) && !getAllParcels().includes(parcel)) state.customParcels.push(parcel);
+  state.parcelManagerSelected = parcel;
+  await saveLocalData(false);
+  closeParcelPlanPreview();
+  const parts = [];
+  if (added) parts.push(`${added} plantation(s) ajoutée(s)`);
+  if (newVarieties) parts.push(`${newVarieties} nouvelle(s) variété(s)`);
+  if (updated) parts.push(`${updated} mise(s) à jour`);
+  if (conflicts) parts.push(`${conflicts} position(s) en conflit ignorée(s)`);
+  showToast(parts.length ? parts.join(' · ') : 'Aucune modification');
+  renderParcelsManagement();
+}
+
+/** Génère un modèle Excel vierge aux colonnes attendues. */
+function downloadParcelPlanTemplate() {
+  if (!window.XLSX) return showToast('SheetJS non disponible');
+  const example = [{
+    'SE': 'PJ', 'Variété': 'EXEMPLE 01', 'Dénomination': 'Nom commercial', 'Clone': '', 'Protection': 'COV',
+    'Rang': 11, 'Arbre de début': 197, 'Arbre de fin': 201, 'Nb Arbres': 5
+  }];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(example, { header: PARCEL_PLAN_COLUMNS });
+  XLSX.utils.book_append_sheet(wb, ws, 'Plan');
+  XLSX.writeFile(wb, 'Modele_plan_parcelle.xlsx');
+  showToast('Modèle téléchargé');
+}
+
+window.openParcelPlanImport = openParcelPlanImport;
+window.handleParcelPlanFile = handleParcelPlanFile;
+window.closeParcelPlanPreview = closeParcelPlanPreview;
+window.applyParcelPlanImport = applyParcelPlanImport;
+window.downloadParcelPlanTemplate = downloadParcelPlanTemplate;
+
+/* ============================================================================
+   v24 - MODULE TAILLE
+   Consigne de taille par variété (petits / moyens / gros rameaux),
+   code couleur "piquet" pour les consignes aux ouvriers,
+   puis comptage des rameaux une fois la taille terminée.
+   Le comptage alimente la section "Structure de l'arbre" de l'éclaircissage.
+   ========================================================================== */
+
+const DEFAULT_PRUNING_TYPES = [
+  { key: 'small',  label: 'Petits rameaux', short: 'Petits', color: '#ffd60a', hint: 'Taille courte : on conserve les petits rameaux / coursons.' },
+  { key: 'medium', label: 'Rameaux moyens', short: 'Moyens', color: '#007aff', hint: 'Taille sur rameaux mixtes de vigueur moyenne.' },
+  { key: 'large',  label: 'Gros rameaux',   short: 'Gros',   color: '#ff3b30', hint: 'Taille longue : on conserve les rameaux vigoureux.' },
+  { key: 'mixed',  label: 'Taille mixte',   short: 'Mixte',  color: '#34c759', hint: 'Répartition équilibrée entre les trois catégories.' }
+];
+
+const PRUNING_PALETTE = [
+  { name: 'Jaune',  hex: '#ffd60a' },
+  { name: 'Bleu',   hex: '#007aff' },
+  { name: 'Rouge',  hex: '#ff3b30' },
+  { name: 'Vert',   hex: '#34c759' },
+  { name: 'Orange', hex: '#ff9500' },
+  { name: 'Violet', hex: '#af52de' },
+  { name: 'Rose',   hex: '#ff2d55' },
+  { name: 'Blanc',  hex: '#ffffff' },
+  { name: 'Noir',   hex: '#2c2c2e' }
+];
+
+const DEFAULT_PRUNING_COLORS = { small: '#ffd60a', medium: '#007aff', large: '#ff3b30', mixed: '#34c759' };
+const PRUNING_COUNT_FIELDS = { small: 'pruningShootSmall', medium: 'pruningShootMedium', large: 'pruningShootLarge' };
+const PRUNING_FILTERS = ['Toutes', 'Sans consigne', 'À tailler', 'Taillées'];
+/** Classe de maturité utilisée pour trier et regrouper le suivi taille. */
+function pruningMaturityBucket(record) {
+  if (!record?.maturityDate) return 'Sans maturité';
+  return getMaturityClass(record.maturityDate);
+}
+
+function pruningMaturityOptions() {
+  return [...MATURITY_CLASSES.map(c => c.label), 'Hors intervalle', 'Sans maturité'];
+}
+
+function pruningShapeLabel(record) {
+  return isFlat(record) ? 'Plates' : 'Rondes';
+}
+
+/* ------------------------------------------------- catalogue des types */
+
+/** Retourne les types de taille : ceux créés par l'utilisateur, sinon les types par défaut. */
+function getPruningTypes() {
+  if (Array.isArray(state.pruningTypes) && state.pruningTypes.length) {
+    return state.pruningTypes.filter(t => t && t.key);
+  }
+  return DEFAULT_PRUNING_TYPES.map(t => ({ ...t, color: (state.pruningColors || {})[t.key] || t.color }));
+}
+/** Matérialise le catalogue dans l'état pour pouvoir le modifier. */
+function ensurePruningTypes() {
+  if (!Array.isArray(state.pruningTypes) || !state.pruningTypes.length) {
+    state.pruningTypes = getPruningTypes().map(t => ({ ...t }));
+  }
+  return state.pruningTypes;
+}
+/** Génère une clé unique et stable pour un nouveau type de taille. */
+function makePruningTypeKey(label) {
+  const base = normalizeSearchText(label).slice(0, 18) || 'type';
+  const used = getPruningTypes().map(t => t.key);
+  let key = base;
+  let i = 2;
+  while (used.includes(key)) { key = `${base}${i}`; i += 1; }
+  return key;
+}
+function pruningTypeShort(type) {
+  if (!type) return '';
+  if (type.short) return type.short;
+  const first = String(type.label || '').trim().split(/\s+/)[0] || 'Type';
+  return first.length > 12 ? first.slice(0, 12) + '…' : first;
+}
+function pruningColorHex(key) {
+  const info = pruningTypeInfo(key);
+  return (info && info.color) || '#8e8e93';
+}
+function pruningColorName(hex) {
+  const found = PRUNING_PALETTE.find(c => String(c.hex).toLowerCase() === String(hex || '').toLowerCase());
+  return found ? found.name : 'Couleur';
+}
+function pruningTypeInfo(key) {
+  return getPruningTypes().find(t => t.key === key) || null;
+}
+function pruningTypeLabel(key) {
+  const info = pruningTypeInfo(key);
+  return info ? info.label : 'Sans consigne';
+}
+function pruningStakeLabel(key) {
+  const info = pruningTypeInfo(key);
+  if (!info) return 'Aucun piquet';
+  return `Piquet ${pruningColorName(pruningColorHex(key)).toLowerCase()}`;
+}
+/** Choisit un texte noir ou blanc selon la luminance de la couleur du piquet. */
+function contrastText(hex) {
+  const value = String(hex || '').replace('#', '');
+  if (value.length !== 6) return '#1c1c1e';
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#1c1c1e' : '#ffffff';
+}
+async function setPruningColor(key, hex) {
+  const types = ensurePruningTypes();
+  const type = types.find(t => t.key === key);
+  if (!type) return;
+  type.color = hex;
+  state.pruningColors = { ...(state.pruningColors || {}), [key]: hex };
+  await saveLocalData(false);
+  renderPruningInstructions();
+  showToast(`${pruningTypeLabel(key)} : piquet ${pruningColorName(hex).toLowerCase()}`);
+}
+
+/* ------------------------------------------- création / édition d'un type */
+
+function openPruningTypeEditor(key) {
+  const existing = key ? pruningTypeInfo(key) : null;
+  const usedColors = getPruningTypes().map(t => String(t.color || '').toLowerCase());
+  const freeColor = PRUNING_PALETTE.find(c => !usedColors.includes(String(c.hex).toLowerCase()));
+  state.pruningTypeDraft = existing
+    ? { key: existing.key, label: existing.label || '', short: existing.short || '', hint: existing.hint || '', color: existing.color || '#8e8e93', isNew: false }
+    : { key: '', label: '', short: '', hint: '', color: (freeColor || PRUNING_PALETTE[0]).hex, isNew: true };
+  renderPruningTypeEditor();
+}
+
+function renderPruningTypeEditor() {
+  const draft = state.pruningTypeDraft;
+  if (!draft) return;
+  const usage = draft.isNew ? 0 : state.records.filter(r => r.pruningType === draft.key).length;
+  document.getElementById('pruningTypeEditor')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pruningTypeEditor';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true">
+      <div class="prune-sheet-head">
+        <h2 class="prune-sheet-title">${draft.isNew ? 'Nouveau type de taille' : 'Modifier le type'}</h2>
+        <button class="menu-close-btn" onclick="closePruningTypeEditor()" aria-label="Fermer">×</button>
+      </div>
+      <div class="prune-badge" style="background:${draft.color};color:${contrastText(draft.color)};border-color:${draft.color}">
+        <span class="prune-dot" style="background:${contrastText(draft.color)};opacity:.85"></span>${escapeHtml(draft.label || 'Nom du type')} · piquet ${escapeHtml(pruningColorName(draft.color).toLowerCase())}
+      </div>
+      <p class="prune-note" style="margin-top:6px">Pastille affichée dans les listes : « ${escapeHtml(pruningTypeShort({ label: draft.label || 'Nom du type', short: String(draft.short || '').trim() }))} »</p>
+      <div class="fields" style="margin-top:12px">
+        <div class="field"><label>Nom du type de taille</label><input id="pruningDraftLabel" type="text" placeholder="Ex. Taille sur rameaux longs" value="${escapeAttr(draft.label)}"></div>
+        <div class="field"><label>Nom court affiché sur les listes (facultatif)</label><input id="pruningDraftShort" type="text" maxlength="12" placeholder="Ex. Longs" value="${escapeAttr(draft.short)}"></div>
+        <div class="field"><label>Consigne / description (facultatif)</label><input id="pruningDraftHint" type="text" placeholder="Ex. Conserver 6 à 8 rameaux longs par charpentière" value="${escapeAttr(draft.hint)}"></div>
+      </div>
+      <p class="prune-note" style="margin-top:12px">Couleur du piquet</p>
+      <div class="prune-color-choices">
+        ${PRUNING_PALETTE.map(c => {
+          const taken = getPruningTypes().some(t => t.key !== draft.key && String(t.color || '').toLowerCase() === String(c.hex).toLowerCase());
+          return `<button type="button" class="prune-color-choice ${String(c.hex).toLowerCase() === String(draft.color).toLowerCase() ? 'active' : ''}" style="background:${c.hex}" title="${escapeAttr(c.name + (taken ? ' (déjà utilisée)' : ''))}" onclick="setPruningDraftColor('${c.hex}')">${taken ? '<span class="prune-color-taken">•</span>' : ''}</button>`;
+        }).join('')}
+      </div>
+      <button class="btn green" style="margin-top:14px" onclick="savePruningTypeEditor()">${draft.isNew ? 'Créer le type' : 'Enregistrer'}</button>
+      ${draft.isNew ? '' : `<button class="btn secondary" style="margin-top:8px;color:var(--red)" onclick="deletePruningType('${escapeAttr(draft.key)}')">Supprimer ce type${usage ? ` (${usage} variété(s) concernée(s))` : ''}</button>`}
+    </section>`;
+  overlay.addEventListener('click', event => { if (event.target === overlay) closePruningTypeEditor(); });
+  document.body.appendChild(overlay);
+  document.getElementById('pruningDraftLabel')?.addEventListener('input', e => { state.pruningTypeDraft.label = e.target.value; });
+  document.getElementById('pruningDraftShort')?.addEventListener('input', e => { state.pruningTypeDraft.short = e.target.value; });
+  document.getElementById('pruningDraftHint')?.addEventListener('input', e => { state.pruningTypeDraft.hint = e.target.value; });
+}
+
+function readPruningDraftInputs() {
+  if (!state.pruningTypeDraft) return;
+  const label = document.getElementById('pruningDraftLabel');
+  const short = document.getElementById('pruningDraftShort');
+  const hint = document.getElementById('pruningDraftHint');
+  if (label) state.pruningTypeDraft.label = label.value;
+  if (short) state.pruningTypeDraft.short = short.value;
+  if (hint) state.pruningTypeDraft.hint = hint.value;
+}
+
+function setPruningDraftColor(hex) {
+  if (!state.pruningTypeDraft) return;
+  readPruningDraftInputs();
+  state.pruningTypeDraft.color = hex;
+  renderPruningTypeEditor();
+}
+
+function closePruningTypeEditor() {
+  state.pruningTypeDraft = null;
+  document.getElementById('pruningTypeEditor')?.remove();
+}
+
+async function savePruningTypeEditor() {
+  readPruningDraftInputs();
+  const draft = state.pruningTypeDraft;
+  if (!draft) return;
+  const label = String(draft.label || '').trim();
+  if (!label) return showToast('Donner un nom au type de taille');
+  const types = ensurePruningTypes();
+  const duplicate = types.some(t => t.key !== draft.key && normalizeSearchText(t.label) === normalizeSearchText(label));
+  if (duplicate) return showToast('Un type porte déjà ce nom');
+  if (draft.isNew) {
+    types.push({ key: makePruningTypeKey(label), label, short: String(draft.short || '').trim(), hint: String(draft.hint || '').trim(), color: draft.color });
+  } else {
+    const type = types.find(t => t.key === draft.key);
+    if (!type) return;
+    type.label = label;
+    type.short = String(draft.short || '').trim();
+    type.hint = String(draft.hint || '').trim();
+    type.color = draft.color;
+    state.pruningColors = { ...(state.pruningColors || {}), [type.key]: type.color };
+  }
+  await saveLocalData(false);
+  closePruningTypeEditor();
+  showToast(draft.isNew ? 'Type de taille créé' : 'Type de taille modifié');
+  renderPruningInstructions();
+}
+
+async function deletePruningType(key) {
+  const types = ensurePruningTypes();
+  if (types.length <= 1) return showToast('Il faut conserver au moins un type de taille');
+  const type = types.find(t => t.key === key);
+  if (!type) return;
+  const used = state.records.filter(r => r.pruningType === key);
+  const message = used.length
+    ? `Supprimer « ${type.label} » ? ${used.length} variété(s) perdront leur consigne de taille.`
+    : `Supprimer « ${type.label} » ?`;
+  if (!confirm(message)) return;
+  state.pruningTypes = types.filter(t => t.key !== key);
+  used.forEach(r => {
+    const record = state.records.find(x => x.id === r.id);
+    if (!record) return;
+    record.pruningType = '';
+    record.pruningFinished = false;
+    record.lastModified = new Date().toISOString();
+    recalculateRecord(record);
+  });
+  if (getFilters().pruningType === key) getFilters().pruningType = '';
+  await saveLocalData(false);
+  closePruningTypeEditor();
+  showToast('Type de taille supprimé');
+  renderPruningInstructions();
+}
+
+/* ------------------------------------------------------------ données taille */
+
+/** Normalise les champs taille d'une variété (appelé par recalculateRecord). */
+function normalizePruningRecord(record) {
+  if (!record) return record;
+  if (!getPruningTypes().some(t => t.key === record.pruningType)) record.pruningType = record.pruningType || '';
+  if (record.pruningType && !pruningTypeInfo(record.pruningType)) record.pruningType = '';
+  record.pruningFinished = !!record.pruningFinished;
+  Object.values(PRUNING_COUNT_FIELDS).forEach(field => {
+    record[field] = numberOrBlank(record[field]);
+  });
+  const counts = getPruningCounts(record);
+  record.pruningShootTotal = counts ? counts.total : '';
+  if (record.pruningFinished && !canFinishPruning(record)) record.pruningFinished = false;
+  return record;
+}
+
+function getPruningCounts(record) {
+  const small = numberOrBlank(record?.pruningShootSmall);
+  const medium = numberOrBlank(record?.pruningShootMedium);
+  const large = numberOrBlank(record?.pruningShootLarge);
+  if (small === '' || medium === '' || large === '') return null;
+  if (![small, medium, large].every(v => Number.isFinite(Number(v)) && Number(v) >= 0)) return null;
+  return { small: Number(small), medium: Number(medium), large: Number(large), total: Number(small) + Number(medium) + Number(large) };
+}
+function hasCompletePruningCounts(record) {
+  const counts = getPruningCounts(record);
+  return !!counts && counts.total > 0;
+}
+function isPrunedRecord(record) {
+  return !!(record && record.pruningFinished);
+}
+function canFinishPruning(record) {
+  return !!(record && record.pruningType && record.pruningDate && hasCompletePruningCounts(record));
+}
+function getPruningValidationMessage(record) {
+  if (!record.pruningType) return 'Choisir le type de taille (consigne piquet)';
+  if (!record.pruningDate) return 'Renseigner la date de taille';
+  if (!hasCompletePruningCounts(record)) return 'Compter les rameaux restants après taille';
+  return '';
+}
+/** Reporte le comptage de taille dans la structure de l'arbre utilisée pour l'éclaircissage. */
+function applyPruningCountsToStructure(id, silent = false) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  const counts = getPruningCounts(record);
+  if (!counts) return;
+  record.shootSmall = counts.small;
+  record.shootMedium = counts.medium;
+  record.shootLarge = counts.large;
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  saveLocalData(false);
+  if (!silent) {
+    showToast('Comptage reporté dans la structure de l’arbre');
+    if (state.currentView === 'form') renderForm(id);
+  }
+}
+
+function getPruningStats(records = state.records) {
+  const list = Array.isArray(records) ? records : [];
+  const total = list.length;
+  const withType = list.filter(r => r.pruningType).length;
+  const done = list.filter(isPrunedRecord).length;
+  const byType = {};
+  getPruningTypes().forEach(t => {
+    const items = list.filter(r => r.pruningType === t.key);
+    byType[t.key] = {
+      varieties: items.length,
+      trees: items.reduce((sum, r) => sum + getWorkloadTreeCount(r), 0),
+      done: items.filter(isPrunedRecord).length
+    };
+  });
+  return {
+    total,
+    withType,
+    without: total - withType,
+    done,
+    remaining: withType - done,
+    progress: total ? Math.round((done / total) * 100) : 0,
+    byType
+  };
+}
+
+/* -------------------------------------------------------------- liste taille */
+
+function getFilteredPruningRecords() {
+  let records = state.records.map(recalculateRecord);
+  const q = normalizeColumnName(state.pruningSearch || '');
+  if (q) {
+    records = records.filter(r => normalizeColumnName(recordSearchHaystack(r, 'pruning')).includes(q));
+  }
+  records = applySharedFilters(records, 'pruning');
+  switch (state.pruningFilter) {
+    case 'Sans consigne': records = records.filter(r => !r.pruningType); break;
+    case 'À tailler': records = records.filter(r => r.pruningType && !isPrunedRecord(r)); break;
+    case 'Taillées': records = records.filter(isPrunedRecord); break;
+  }
+  return sortRecordsByParcelPosition(records);
+}
+
+function renderPruningList() {
+  lockViewportMobile();
+  state.currentView = 'pruning';
+  const stats = getPruningStats();
+  const records = getFilteredPruningRecords();
+
+  state.activeSection = 'pruning';
+  app.innerHTML = sectionToggleHeader('pruning', `${records.length} affichée(s) sur ${state.records.length}`,
+    '<button class="list-action-btn stats" onclick="renderPruningInstructions()"><span class="icon">🪧</span><span>Piquets</span></button>') + `
+    <main class="content">
+      <div class="searchbar">
+        <input id="pruningSearchInput" type="search" placeholder="Variété, SE, parcelle, rang…" value="${escapeAttr(state.pruningSearch || '')}" />
+        ${filterButton()}
+      </div>
+      ${progressBlock(stats.progress, stats.done, stats.total)}
+      <div class="chips" style="margin-top:12px">${PRUNING_FILTERS.map(f => `<button class="chip ${state.pruningFilter === f ? 'active' : ''}" onclick="setPruningFilter('${f}')">${f}</button>`).join('')}</div>
+      <button type="button" class="btn secondary prune-bulk-entry" onclick="openBulkPruningSelector()" ${records.length ? '' : 'disabled'}><span class="bulk-symbol">☑</span><span>Attribuer une consigne groupée</span></button>
+      <div class="prune-list">
+        ${records.length ? pruningListBody(records) : '<div class="empty">Aucune variété ne correspond aux filtres.</div>'}
+      </div>
+    </main>`;
+
+  document.getElementById('pruningSearchInput')?.addEventListener('input', e => {
+    state.pruningSearch = e.target.value;
+    renderPruningList();
+    requestAnimationFrame(() => {
+      const input = document.getElementById('pruningSearchInput');
+      if (input) {
+        input.focus({ preventScroll: true });
+        const pos = input.value.length;
+        try { input.setSelectionRange(pos, pos); } catch (_) {}
+      }
+    });
+  });
+
+}
+
+function setPruningFilter(filter) {
+  state.pruningFilter = filter;
+  renderPruningList();
+}
+/** Liste des plantations dans l'ordre naturel des parcelles et positions. */
+function pruningListBody(records) {
+  return records.map(pruningRecordCard).join('');
+}
+
+function pruningRecordCard(r) {
+  const type = r.pruningType;
+  const hex = type ? pruningColorHex(type) : 'rgba(142,142,147,.35)';
+  const info = pruningTypeInfo(type);
+  const done = isPrunedRecord(r);
+  const trees = getWorkloadTreeCount(r);
+  const counts = getPruningCounts(r);
+  const sub = [
+    r.se || '—',
+    pruningShapeLabel(r) === 'Plates' ? 'Plate' : 'Rond',
+    r.maturityDate ? displayDate(r.maturityDate) : 'sans maturité',
+    r.parcel || r.group || 'Sans parcelle',
+    formatTreePosition(r),
+    `${trees} arb.`,
+    done && counts ? `${counts.total} ram./arbre` : ''
+  ].filter(Boolean).join(' · ');
+  const chipStyle = info
+    ? `background:${hex};color:${contrastText(hex)};border-color:${hex}`
+    : 'background:transparent;color:var(--text-2)';
+  return `<article class="prune-row ${done ? 'done' : ''}" onclick="renderPruningForm('${r.id}')">
+    <span class="prune-stripe" style="background:${hex}"></span>
+    <div class="prune-main">
+      <div class="prune-name">${escapeHtml(r.variety || 'Sans variété')}${preWorkBadge(r, 'pruning')}${done ? '<span class="prune-check">✓</span>' : ''}</div>
+      <div class="prune-sub">${escapeHtml(sub)}</div>
+    </div>
+    <button type="button" class="prune-type-chip" style="${chipStyle}" onclick="event.stopPropagation();openPruningTypeSheet('${r.id}')">${escapeHtml(info ? pruningTypeShort(info) : '+ consigne')}</button>
+  </article>`;
+}
+
+/* ----------------------------- choix multi-variétés pour une consigne groupée */
+
+// État temporaire de la sélection : jamais enregistré dans les données terrain.
+let pruningBulkCandidates = [];
+let pruningBulkSelection = new Set();
+
+/** Une variété est sélectionnée une seule fois même si plusieurs plantations sont visibles. */
+function getBulkPruningCandidates() {
+  const candidates = new Map();
+  getFilteredPruningRecords().forEach(record => {
+    const key = record.varietyId || `plantation:${record.id}`;
+    if (!candidates.has(key)) candidates.set(key, { key, record, visiblePlantings: 0 });
+    candidates.get(key).visiblePlantings += 1;
+  });
+  return Array.from(candidates.values());
+}
+
+function getBulkPruningTargets() {
+  return pruningBulkCandidates.filter(item => pruningBulkSelection.has(item.key)).map(item => item.record);
+}
+
+/** Réutilise exactement la recherche, les filtres et le statut actifs du suivi taille. */
+function openBulkPruningSelector() {
+  pruningBulkCandidates = getBulkPruningCandidates();
+  if (!pruningBulkCandidates.length) return showToast('Aucune variété ne correspond aux filtres');
+  pruningBulkSelection = new Set(pruningBulkCandidates.map(item => item.key));
+  renderBulkPruningSelector();
+}
+
+function renderBulkPruningSelector() {
+  document.getElementById('pruningBulkSelector')?.remove();
+  const selected = pruningBulkSelection.size;
+  const total = pruningBulkCandidates.length;
+  const f = getFilters();
+  const applied = [
+    f.parcels === null ? 'Toutes les parcelles' : `Parcelles : ${f.parcels.length ? f.parcels.join(', ') : 'aucune'}`,
+    f.maturities === null ? 'Toutes les maturités' : `Maturités : ${f.maturities.length ? f.maturities.join(', ') : 'aucune'}`,
+    f.shape ? `Typologie : ${f.shape === 'flat' ? 'Plates' : 'Rondes'}` : null,
+    f.preWork ? `Pré-taille : ${f.preWork === 'done' ? 'réalisée' : 'non réalisée'}` : null,
+    f.pruningType ? `Type de taille : ${f.pruningType === 'none' ? 'sans consigne' : pruningTypeLabel(f.pruningType)}` : null,
+    state.pruningFilter && state.pruningFilter !== 'Toutes' ? `Statut : ${state.pruningFilter}` : null,
+    state.pruningSearch ? `Recherche : ${state.pruningSearch}` : null
+  ].filter(Boolean);
+  const overlay = document.createElement('div');
+  overlay.id = 'pruningBulkSelector';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true" aria-label="Attribution groupée de la consigne de taille">
+      <div class="prune-sheet-head">
+        <h2 class="prune-sheet-title">Consigne groupée</h2>
+        <button type="button" class="menu-close-btn" onclick="closeBulkPruningSelector()" aria-label="Fermer">×</button>
+      </div>
+      <div class="prune-bulk-filters"><strong>Filtres du suivi taille :</strong> ${applied.map(escapeHtml).join(' · ')}</div>
+      <p class="prune-bulk-footnote">Les ${total} variété(s) correspondant aux filtres sont présélectionnées. Décoche celles à exclure.</p>
+      <div class="prune-bulk-actions">
+        <button type="button" class="btn secondary" onclick="setBulkPruningAll(true)">Tout sélectionner</button>
+        <button type="button" class="btn secondary" onclick="setBulkPruningAll(false)">Tout décocher</button>
+      </div>
+      <div class="prune-bulk-list" id="pruningBulkList">
+        ${pruningBulkCandidates.map(item => {
+          const r = item.record;
+          const type = r.pruningType ? pruningTypeLabel(r.pruningType) : 'Sans consigne';
+          const parcelInfo = item.visiblePlantings > 1 ? `${item.visiblePlantings} implantations affichées` : (r.parcel || r.group || 'Sans parcelle');
+          return `<label class="prune-bulk-row">
+            <input type="checkbox" data-bulk-key="${escapeAttr(item.key)}" ${pruningBulkSelection.has(item.key) ? 'checked' : ''}>
+            <span class="prune-bulk-detail">
+              <span class="prune-bulk-name">${escapeHtml(r.variety || r.denomination || 'Variété sans nom')}</span>
+              <span class="prune-bulk-meta">${escapeHtml(parcelInfo)} · ${escapeHtml(type)}</span>
+            </span>
+          </label>`;
+        }).join('')}
+      </div>
+      <p class="prune-bulk-count" id="pruningBulkCount">${selected} variété(s) sélectionnée(s) sur ${total}</p>
+      <button type="button" class="btn green" id="pruningBulkContinue" onclick="continueBulkPruning()" ${selected ? '' : 'disabled'}>Choisir la consigne</button>
+      <p class="prune-bulk-footnote">La consigne sera également reportée sur toutes les autres implantations de chaque variété sélectionnée, y compris hors des parcelles filtrées. Les comptages réels et les dates ne seront pas modifiés.</p>
+    </section>`;
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) closeBulkPruningSelector();
+  });
+  overlay.addEventListener('change', event => {
+    if (!event.target.matches('input[data-bulk-key]')) return;
+    if (event.target.checked) pruningBulkSelection.add(event.target.dataset.bulkKey);
+    else pruningBulkSelection.delete(event.target.dataset.bulkKey);
+    updateBulkPruningCount();
+  });
+  document.body.appendChild(overlay);
+}
+
+function updateBulkPruningCount() {
+  const count = document.getElementById('pruningBulkCount');
+  if (count) count.textContent = `${pruningBulkSelection.size} variété(s) sélectionnée(s) sur ${pruningBulkCandidates.length}`;
+  const button = document.getElementById('pruningBulkContinue');
+  if (button) button.disabled = !pruningBulkSelection.size;
+}
+
+function setBulkPruningAll(checked) {
+  pruningBulkSelection = checked ? new Set(pruningBulkCandidates.map(item => item.key)) : new Set();
+  document.querySelectorAll('#pruningBulkList input[data-bulk-key]').forEach(input => { input.checked = checked; });
+  updateBulkPruningCount();
+}
+
+function closeBulkPruningSelector() {
+  document.getElementById('pruningBulkSelector')?.remove();
+}
+
+function continueBulkPruning() {
+  if (!pruningBulkSelection.size) return showToast('Sélectionner au moins une variété');
+  closeBulkPruningSelector();
+  openPruningTypeSheet('BULK');
+}
+
+/* ------------------------------------------------- feuille de choix du type */
+
+function openPruningTypeSheet(id) {
+  const bulk = id === 'BULK';
+  const record = bulk ? null : state.records.find(r => r.id === id);
+  if (!bulk && !record) return;
+  const targets = bulk ? getBulkPruningTargets() : [record];
+  if (bulk && !targets.length) return showToast('Aucune variété sélectionnée');
+  const current = bulk ? '' : record.pruningType;
+  document.getElementById('pruningTypeSheet')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pruningTypeSheet';
+  overlay.className = 'prune-sheet-overlay';
+  overlay.innerHTML = `<section class="prune-sheet" role="dialog" aria-modal="true">
+      <div class="prune-sheet-head">
+        <h2 class="prune-sheet-title">${bulk ? `Consigne pour ${targets.length} variété(s)` : escapeHtml(record.variety || 'Variété')}</h2>
+        <button class="menu-close-btn" onclick="closePruningTypeSheet()" aria-label="Fermer">×</button>
+      </div>
+      <p class="muted small" style="margin:0 0 12px">Le type de taille détermine la couleur du piquet posé au pied de la variété.</p>
+      <div class="prune-type-grid">
+        ${getPruningTypes().map(t => {
+          const hex = pruningColorHex(t.key);
+          return `<button type="button" class="prune-type-btn ${current === t.key ? 'active' : ''}" onclick="choosePruningType('${escapeAttr(id)}','${t.key}')">
+            <span class="prune-dot lg" style="background:${hex}"></span>
+            <span>
+              <span class="prune-type-title">${escapeHtml(t.label)} · piquet ${escapeHtml(pruningColorName(hex).toLowerCase())}</span>
+              <span class="prune-type-hint">${escapeHtml(t.hint)}</span>
+            </span>
+          </button>`;
+        }).join('')}
+        <button type="button" class="prune-type-btn" onclick="choosePruningType('${escapeAttr(id)}','')">
+          <span class="prune-dot lg" style="background:rgba(142,142,147,.35)"></span>
+          <span><span class="prune-type-title">Retirer la consigne</span><span class="prune-type-hint">Aucun piquet posé</span></span>
+        </button>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', event => { if (event.target === overlay) closePruningTypeSheet(); });
+  document.body.appendChild(overlay);
+}
+
+function closePruningTypeSheet() {
+  document.getElementById('pruningTypeSheet')?.remove();
+}
+
+async function choosePruningType(id, typeKey) {
+  const bulk = id === 'BULK';
+  const targets = bulk ? getBulkPruningTargets() : state.records.filter(r => r.id === id);
+  if (!targets.length) return showToast('Aucune variété sélectionnée');
+  const varietyIds = new Set(targets.map(t => t.varietyId).filter(Boolean));
+  if (bulk) {
+    const label = typeKey ? pruningTypeLabel(typeKey) : 'Sans consigne';
+    const targetIds = new Set(targets.map(t => t.id));
+    const affected = state.records.filter(r => targetIds.has(r.id) || (r.varietyId && varietyIds.has(r.varietyId)));
+    const replacing = affected.filter(r => r.pruningType && r.pruningType !== typeKey).length;
+    const finishedReset = !typeKey ? affected.filter(r => r.pruningFinished).length : 0;
+    const message = `Appliquer « ${label} » à ${targets.length} variété(s), soit ${affected.length} implantation(s) sur toutes les parcelles ?` +
+      (replacing ? `\n${replacing} implantation(s) avec une consigne différente seront mises à jour.` : '') +
+      (finishedReset ? `\nAttention : ${finishedReset} taille(s) terminée(s) repasseront à « à tailler » car la consigne est retirée.` : '') +
+      '\nLes comptages et les dates resteront inchangés.';
+    if (!confirm(message)) return;
+  }
+  targets.forEach(target => {
+    const record = state.records.find(r => r.id === target.id);
+    if (!record) return;
+    record.pruningType = typeKey;
+    if (!typeKey) record.pruningFinished = false;
+    record.lastModified = new Date().toISOString();
+    recalculateRecord(record);
+  });
+  // Toutes les plantations d'une même variété partagent la même consigne.
+  state.records.forEach(record => {
+    if (!varietyIds.has(record.varietyId) || targets.some(t => t.id === record.id)) return;
+    record.pruningType = typeKey;
+    if (!typeKey) record.pruningFinished = false;
+    record.lastModified = new Date().toISOString();
+    recalculateRecord(record);
+  });
+  await saveLocalData(false);
+  closePruningTypeSheet();
+  showToast(typeKey
+    ? `${pruningTypeLabel(typeKey)} · ${pruningStakeLabel(typeKey).toLowerCase()}${bulk ? ` (${targets.length})` : ''}`
+    : 'Consigne retirée');
+  if (state.currentView === 'pruningForm' && !bulk) renderPruningForm(id);
+  else renderPruningList();
+}
+
+/* --------------------------------------------------------------- fiche taille */
+
+function renderPruningForm(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return renderPruningList();
+  recalculateRecord(record);
+  state.selectedId = record.id;
+  state.currentView = 'pruningForm';
+
+  const type = record.pruningType;
+  const hex = type ? pruningColorHex(type) : '';
+  const counts = getPruningCounts(record);
+  const done = isPrunedRecord(record);
+  const canFinish = canFinishPruning(record);
+  const message = getPruningValidationMessage(record);
+  const siblings = record.varietyId ? state.records.filter(r => r.varietyId === record.varietyId).length : 1;
+
+  app.innerHTML = `<header class="form-sticky-header">
+      <div class="form-header-grid">
+        <button class="back-btn" onclick="renderPruningList()"><span>Retour</span></button>
+        <div class="form-title-block">
+          <div class="form-title-main">${escapeHtml(record.variety || 'Fiche taille')}</div>
+          <div class="form-title-sub only-location">${escapeHtml(`${record.parcel || record.group || '—'} · ${formatTreePosition(record)} · ${getWorkloadTreeCount(record)} arbres`)}</div>
+        </div>
+        <button class="icon-btn reset-form-btn" onclick="resetPruningRecord('${record.id}')"><span>Réinit.</span></button>
+      </div>
+    </header>
+    <main class="content grid form-content">
+      <section class="card">
+        <h2 class="section-title">🪧 Consigne de taille</h2>
+        ${type
+          ? `<div class="prune-badge" style="background:${hex};color:${contrastText(hex)};border-color:${hex}"><span class="prune-dot" style="background:${contrastText(hex)};opacity:.85"></span>${escapeHtml(pruningTypeLabel(type))} · ${escapeHtml(pruningStakeLabel(type).toLowerCase())}</div>`
+          : '<div class="prune-badge empty">Aucune consigne définie</div>'}
+        <button class="btn secondary" style="margin-top:10px" onclick="openPruningTypeSheet('${record.id}')">${type ? 'Changer la consigne' : 'Définir la consigne'}</button>
+        ${siblings > 1 ? `<p class="prune-note">Consigne partagée par les ${siblings} parcelles de cette variété. Le comptage ci-dessous ne concerne que ${escapeHtml(record.parcel || 'cette parcelle')}.</p>` : ''}
+        ${preWorkToggle(record, 'pruning')}
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">📅 Réalisation</h2>
+        <div class="fields">
+          <div class="field"><label>Date de taille</label><input type="date" data-prune-field="pruningDate" value="${escapeAttr(record.pruningDate || '')}"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">🌿 Comptage après taille</h2>
+        <div class="prune-count-head"><div>Rameaux laissés</div><div>Nombre</div></div>
+        ${[['small', 'Petits'], ['medium', 'Moyens'], ['large', 'Gros']].map(([key, label]) => `
+          <div class="prune-count-row">
+            <div class="prune-count-label"><span class="prune-dot sm" style="background:${pruningColorHex(key)}"></span>${label}</div>
+            <input type="number" inputmode="numeric" min="0" step="1" data-prune-field="${PRUNING_COUNT_FIELDS[key]}" value="${escapeAttr(record[PRUNING_COUNT_FIELDS[key]] ?? '')}" placeholder="0">
+          </div>`).join('')}
+        <div class="prune-total-box">
+          <div class="prune-total-label">Total / arbre</div>
+          <div class="prune-total-value">${counts ? counts.total : '—'}</div>
+        </div>
+        <p class="prune-note">Comptage réalisé sur un arbre témoin. C’est cette donnée qui sert à estimer le nombre de fruits par arbre lors de l’éclaircissage.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">💬 Commentaire taille</h2>
+        <div class="field"><textarea data-prune-field="pruningComment" placeholder="Vigueur, casse, rajeunissement…">${escapeHtml(record.pruningComment || '')}</textarea></div>
+      </section>
+      <div class="form-spacer-bottom"></div>
+    </main>
+    ${!canFinish ? `<div class="finish-help">${escapeHtml(message)}</div>` : ''}
+    <button class="btn green sticky-finish" onclick="finishPruning('${record.id}')" ${canFinish ? '' : 'disabled'}>${done ? 'Taille terminée ✓' : 'Taille terminée'}</button>`;
+
+  document.querySelectorAll('[data-prune-field]').forEach(el => {
+    el.addEventListener('change', e => updatePruningField(record.id, e.target.dataset.pruneField, e.target.value, true));
+    el.addEventListener('input', debounce(e => updatePruningField(record.id, e.target.dataset.pruneField, e.target.value, false), 200));
+  });
+}
+
+function updatePruningField(id, field, value, rerender = true) {
+  const record = state.records.find(r => r.id === id);
+  if (!record || !field) return;
+  record[field] = value;
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  if (record.pruningFinished && hasCompletePruningCounts(record)) applyPruningCountsToStructure(record.id, true);
+  saveLocalData(false);
+  if (rerender) renderPruningForm(id);
+  else {
+    const btn = document.querySelector('.sticky-finish');
+    if (btn) btn.disabled = !canFinishPruning(record);
+  }
+}
+
+function finishPruning(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  recalculateRecord(record);
+  if (!canFinishPruning(record)) {
+    showToast(getPruningValidationMessage(record) || 'Saisie incomplète');
+    return renderPruningForm(id);
+  }
+  record.pruningFinished = true;
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  applyPruningCountsToStructure(record.id, true);
+  saveLocalData(false);
+  showToast('Taille terminée');
+  renderPruningList();
+}
+
+async function resetPruningRecord(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+  if (!confirm('Réinitialiser la saisie de taille de cette variété ? (la consigne piquet est conservée)')) return;
+  record.pruningDate = '';
+  record.pruningComment = '';
+  record.pruningFinished = false;
+  Object.values(PRUNING_COUNT_FIELDS).forEach(field => { record[field] = ''; });
+  record.lastModified = new Date().toISOString();
+  recalculateRecord(record);
+  await saveLocalData(false);
+  showToast('Saisie de taille réinitialisée');
+  renderPruningForm(id);
+}
+
+/* ------------------------------------------------------ consignes / piquets */
+
+function renderPruningInstructions() {
+  lockViewportMobile();
+  state.currentView = 'pruningInstructions';
+  const stats = getPruningStats();
+  const records = state.records.map(recalculateRecord);
+  const parcels = unique(records.map(r => r.parcel || r.group || 'Sans parcelle'));
+
+  const parcelBlocks = parcels.map(parcel => {
+    const items = records.filter(r => (r.parcel || r.group || 'Sans parcelle') === parcel);
+    const groups = getPruningTypes().map(t => {
+      const list = items.filter(r => r.pruningType === t.key).sort((a, b) => num(a.row) - num(b.row) || num(a.treeStart) - num(b.treeStart));
+      if (!list.length) return '';
+      const hex = pruningColorHex(t.key);
+      const trees = list.reduce((sum, r) => sum + getWorkloadTreeCount(r), 0);
+      return `<div class="prune-group">
+        <div class="prune-group-head"><span class="prune-dot" style="background:${hex}"></span>${escapeHtml(t.label)} · piquet ${escapeHtml(pruningColorName(hex).toLowerCase())} — ${list.length} var. / ${trees} arbres</div>
+        ${list.map(r => `<div class="prune-instruction-item">
+          <span class="prune-dot sm" style="background:${hex}"></span>
+          <span>${escapeHtml(r.variety || 'Sans variété')}${hasPreWork(r, 'pruning') ? ' 🚧' : ''}${isPrunedRecord(r) ? ' ✓' : ''}</span>
+          <span class="prune-instruction-pos">${escapeHtml(formatTreePosition(r))} · ${getWorkloadTreeCount(r)} arb.</span>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+    const without = items.filter(r => !r.pruningType);
+    const withoutBlock = without.length ? `<div class="prune-group">
+        <div class="prune-group-head"><span class="prune-dot" style="background:rgba(142,142,147,.35)"></span>Sans consigne — ${without.length} var.</div>
+        ${without.map(r => `<div class="prune-instruction-item">
+          <span class="prune-dot sm" style="background:rgba(142,142,147,.35)"></span>
+          <span>${escapeHtml(r.variety || 'Sans variété')}</span>
+          <span class="prune-instruction-pos">${escapeHtml(formatTreePosition(r))}</span>
+        </div>`).join('')}
+      </div>` : '';
+    if (!groups && !withoutBlock) return '';
+    return `<section class="card">
+      <h2 class="prune-parcel-title"><span>${escapeHtml(parcel)}</span><span class="muted small">${items.length} var.</span></h2>
+      ${groups}${withoutBlock}
+    </section>`;
+  }).join('');
+
+  app.innerHTML = `<header class="topbar prune-noprint"><div class="topbar-row">
+      <button class="back-btn" onclick="renderPruningList()"><span>Retour</span></button>
+      <div class="title-wrap" style="text-align:center"><h1 class="app-title">Consignes piquets</h1><p class="subtitle">Code couleur taille par variété</p></div>
+      <button class="icon-btn" onclick="window.print()"><span>Imprimer</span></button>
+    </div></header>
+    <main class="content grid">
+      <section class="card">
+        <h2 class="section-title">🎨 Légende des piquets</h2>
+        ${getPruningTypes().map(t => {
+          const hex = pruningColorHex(t.key);
+          const data = stats.byType[t.key] || { varieties: 0, trees: 0, done: 0 };
+          return `<div class="prune-legend-row">
+            <span class="prune-dot lg" style="background:${hex}"></span>
+            <span class="prune-legend-text">
+              <span class="prune-legend-title">${escapeHtml(t.label)} — piquet ${escapeHtml(pruningColorName(hex).toLowerCase())}</span>
+              <span class="prune-legend-sub">${data.varieties} variété(s) · ${data.trees} arbres · ${data.done} taillée(s)</span>
+              ${t.hint ? `<span class="prune-legend-sub">${escapeHtml(t.hint)}</span>` : ''}
+            </span>
+            <button type="button" class="prune-edit-btn prune-noprint" onclick="openPruningTypeEditor('${escapeAttr(t.key)}')">Modifier</button>
+          </div>`;
+        }).join('')}
+        <button class="btn secondary prune-noprint" style="margin-top:12px" onclick="openPruningTypeEditor('')">➕ Nouveau type de taille</button>
+        <p class="prune-note">Chaque type correspond à une couleur de piquet. Le comptage après taille reste toujours réparti en petits / moyens / gros rameaux.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">📋 Récapitulatif</h2>
+        <div class="read-grid">
+          ${readTile('Variétés', stats.total)}
+          ${readTile('Avec consigne', stats.withType)}
+          ${readTile('Sans consigne', stats.without)}
+          ${readTile('Taillées', stats.done)}
+        </div>
+      </section>
+
+      ${parcelBlocks || '<div class="empty">Aucune variété enregistrée.</div>'}
+      <div class="form-spacer-bottom prune-noprint"></div>
+    </main>`;
+}
+
+/* ------------------------------------------------------------------- export */
+
+function pruningExportRow(r) {
+  const counts = getPruningCounts(r);
+  const hex = r.pruningType ? pruningColorHex(r.pruningType) : '';
+  return {
+    'parcelle': r.parcel || r.group || '',
+    'SE': r.se || '',
+    'variété': r.variety || '',
+    'dénomination': r.denomination || '',
+    'rang': r.row || '',
+    'arbre de début': r.treeStart || '',
+    'arbre de fin': r.treeEnd || '',
+    'nb arbres': getWorkloadTreeCount(r),
+    'type de taille': r.pruningType ? pruningTypeLabel(r.pruningType) : '',
+    'couleur piquet': hex ? pruningColorName(hex) : '',
+    'date de taille': r.pruningDate || '',
+    'petits rameaux laissés': counts ? counts.small : '',
+    'rameaux moyens laissés': counts ? counts.medium : '',
+    'gros rameaux laissés': counts ? counts.large : '',
+    'total rameaux/arbre': counts ? counts.total : '',
+    'pré-taille réalisée': hasPreWork(r, 'pruning') ? 'oui' : '',
+    'statut taille': isPrunedRecord(r) ? 'taille réalisée' : (r.pruningType ? 'à tailler' : 'sans consigne'),
+    'commentaire taille': r.pruningComment || ''
+  };
+}
+
+/* ------------------------------------------------------- ouverture depuis menu */
+
+window.togglePreWork = togglePreWork;
+window.toggleMainSection = toggleMainSection;
+window.goBackToSection = goBackToSection;
+window.renderPruningList = renderPruningList;
+window.renderPruningForm = renderPruningForm;
+window.renderPruningInstructions = renderPruningInstructions;
+window.openBulkPruningSelector = openBulkPruningSelector;
+window.closeBulkPruningSelector = closeBulkPruningSelector;
+window.setBulkPruningAll = setBulkPruningAll;
+window.continueBulkPruning = continueBulkPruning;
+window.openPruningTypeSheet = openPruningTypeSheet;
+window.closePruningTypeSheet = closePruningTypeSheet;
+window.choosePruningType = choosePruningType;
+window.finishPruning = finishPruning;
+window.resetPruningRecord = resetPruningRecord;
+window.setPruningColor = setPruningColor;
+window.openPruningTypeEditor = openPruningTypeEditor;
+window.closePruningTypeEditor = closePruningTypeEditor;
+window.savePruningTypeEditor = savePruningTypeEditor;
+window.setPruningDraftColor = setPruningDraftColor;
+window.deletePruningType = deletePruningType;
+window.setPruningFilter = setPruningFilter;
+window.applyPruningCountsToStructure = applyPruningCountsToStructure;
+
 </script>
 </body>
 </html>
