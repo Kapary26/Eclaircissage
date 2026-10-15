@@ -1604,6 +1604,10 @@ const FRUITING_SHOOT_FIELDS = { small: 'shootSmall', medium: 'shootMedium', larg
 
 const MAIN_SHEETS = ['P1P2', 'AO P9C', 'IRTA'];
 const REFERENCE_SHEETS = ['CSV', 'Hybrides', 'Feuil2'];
+// Feuilles exportées pour lecture humaine ou sauvegarde : ne sont pas des plans de plantation.
+const NON_PLANTING_SHEETS = ['Synthèse hebdomadaire', 'Historique', 'Taille', 'Sauvegarde application'];
+const BACKUP_SHEET_NAME = 'Sauvegarde application';
+const BACKUP_MAGIC = 'PN_SAUVEGARDE_V1';
 
 const STATUS = [
   'à observer',
@@ -1741,13 +1745,180 @@ async function initApp() {
   else renderList();
 }
 
+/** La sauvegarde complète est embarquée dans une feuille masquée de l'export Excel.
+ *  Les tableaux lisibles restent inchangés. Les morceaux évitent la limite Excel de 32767 caractères par cellule.
+ */
+function createTransferSnapshot() {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    records: state.records,
+    varieties: state.varieties,
+    history: state.history,
+    customParcels: state.customParcels,
+    pruningTypes: getPruningTypes(),
+    pruningColors: state.pruningColors,
+    activeSection: state.activeSection
+  };
+}
+
+function appendFullBackupSheet(workbook) {
+  const raw = JSON.stringify(createTransferSnapshot());
+  const chunkSize = 20000;
+  const chunks = [];
+  for (let i = 0; i < raw.length; i += chunkSize) chunks.push(raw.slice(i, i + chunkSize));
+  const rows = [[BACKUP_MAGIC, 'Sauvegarde intégrale (ne pas modifier)', chunks.length]];
+  chunks.forEach((chunk, i) => rows.push([i + 1, chunk]));
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), BACKUP_SHEET_NAME);
+  if (!workbook.Workbook) workbook.Workbook = {};
+  if (!Array.isArray(workbook.Workbook.Sheets)) workbook.Workbook.Sheets = workbook.SheetNames.map(() => ({}));
+  const index = workbook.SheetNames.indexOf(BACKUP_SHEET_NAME);
+  workbook.Workbook.Sheets[index] = { ...(workbook.Workbook.Sheets[index] || {}), Hidden: 1 };
+}
+
+function readFullBackupSheet(workbook) {
+  const sheet = workbook.Sheets[BACKUP_SHEET_NAME];
+  if (!sheet) return null; // ancien classeur : reprendre les champs de la feuille Taille
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+  if (rows[0]?.[0] !== BACKUP_MAGIC) throw new Error('Feuille de sauvegarde invalide');
+  const expected = Number(rows[0]?.[2]);
+  if (!Number.isInteger(expected) || expected < 1 || rows.length - 1 !== expected) throw new Error('Sauvegarde Excel incomplète');
+  const raw = rows.slice(1).map((r, i) => {
+    if (Number(r?.[0]) !== i + 1 || typeof r?.[1] !== 'string') throw new Error('Sauvegarde Excel altérée');
+    return r[1];
+  }).join('');
+  const payload = JSON.parse(raw);
+  if (payload?.version !== 1 || !Array.isArray(payload.records) || !Array.isArray(payload.varieties) ||
+      !Array.isArray(payload.history) || !Array.isArray(payload.customParcels) ||
+      !Array.isArray(payload.pruningTypes)) throw new Error('Format de sauvegarde non reconnu');
+  return payload;
+}
+
+/** Identité d'implantation stable malgré les identifiants aléatoires générés lors de l'import. */
+function transferPlantingKey(r) {
+  return [r.parcel || r.group, r.variety, r.row, r.treeStart, r.treeEnd]
+    .map(v => normalizeKey(v || '')).join('|');
+}
+
+function mergeTransferredRecords(localRecords, importedRecords, preserveLocal = false) {
+  const result = [...localRecords];
+  const index = new Map(result.map((r, i) => [transferPlantingKey(r), i]));
+  importedRecords.forEach(r => {
+    const key = transferPlantingKey(r);
+    if (index.has(key)) {
+      const i = index.get(key);
+      const old = result[i];
+      const incoming = preserveLocal
+        ? Object.fromEntries(Object.entries(r).filter(([key, value]) =>
+            value !== null && value !== undefined && value !== '' &&
+            !(typeof value === 'boolean' && value === false)))
+        : r;
+      result[i] = { ...old, ...incoming, id: old.id, varietyId: old.varietyId || r.varietyId };
+    } else {
+      index.set(key, result.length);
+      result.push(r);
+    }
+  });
+  return result;
+}
+
+function applyFullTransferSnapshot(payload, replace) {
+  // Installer les types AVANT la normalisation des plantations : sinon les clés personnalisées seraient rejetées.
+  const importedTypes = payload.pruningTypes.filter(t => t && typeof t.key === 'string' && t.key && t.label);
+  state.pruningTypes = replace
+    ? importedTypes
+    : [...new Map([...getPruningTypes(), ...importedTypes].map(t => [t.key, t])).values()];
+  state.pruningColors = replace
+    ? { ...DEFAULT_PRUNING_COLORS, ...(payload.pruningColors || {}) }
+    : { ...state.pruningColors, ...(payload.pruningColors || {}) };
+  state.records = (replace ? payload.records : mergeTransferredRecords(state.records, payload.records))
+    .filter(r => r && typeof r === 'object').map(recalculateRecord);
+  state.varieties = replace
+    ? payload.varieties
+    : [...state.varieties, ...payload.varieties];
+  state.customParcels = unique(replace ? payload.customParcels : [...state.customParcels, ...payload.customParcels]);
+  state.history = replace ? payload.history : [...state.history, ...payload.history].filter((h, i, a) => {
+    const k = JSON.stringify([h.key, h.year, h.type, h.updatedAt]);
+    return a.findIndex(v => JSON.stringify([v.key, v.year, v.type, v.updatedAt]) === k) === i;
+  });
+  if (replace) state.activeSection = payload.activeSection === 'pruning' ? 'pruning' : 'thinning';
+  ensureVarietyLinks();
+}
+
+/** Lecture des anciens exports Excel (sans feuille de sauvegarde complète).
+ * La feuille Taille doit être reliée aux plantations existantes, jamais importée en tant que plantation.
+ */
+function restoreLegacyPruningSheet(workbook, records) {
+  const sheet = workbook.Sheets['Taille'];
+  if (!sheet) return 0;
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+  const byLocation = new Map(records.map(r => [transferPlantingKey(r), r]));
+  const byShortKey = new Map();
+  records.forEach(r => {
+    const key = [r.parcel || r.group, r.variety, r.row, r.treeStart].map(x => normalizeKey(x || '')).join('|');
+    if (!byShortKey.has(key)) byShortKey.set(key, []);
+    byShortKey.get(key).push(r);
+  });
+  const types = getPruningTypes().map(t => ({ ...t }));
+  const used = new Set(types.map(t => t.key));
+  let restored = 0;
+  const clean = x => String(x ?? '').trim();
+  rows.forEach(obj => {
+    const row = Object.fromEntries(Object.entries(obj).map(([k, v]) => [normalizeColumnName(k), v]));
+    const get = k => row[normalizeColumnName(k)] ?? '';
+    const location = {
+      parcel: get('parcelle'), variety: get('variété'), row: get('rang'),
+      treeStart: get('arbre de début'), treeEnd: get('arbre de fin')
+    };
+    let record = byLocation.get(transferPlantingKey(location));
+    if (!record) {
+      const shortKey = [location.parcel, location.variety, location.row, location.treeStart]
+        .map(x => normalizeKey(x || '')).join('|');
+      const matches = byShortKey.get(shortKey) || [];
+      if (matches.length === 1) record = matches[0];
+    }
+    if (!record) return;
+    const typeLabel = clean(get('type de taille'));
+    if (typeLabel) {
+      let type = types.find(t => normalizeKey(t.label) === normalizeKey(typeLabel));
+      const colorName = clean(get('couleur piquet'));
+      const color = PRUNING_PALETTE.find(c => normalizeKey(c.name) === normalizeKey(colorName))?.hex;
+      if (!type) {
+        let base = 'import_' + normalizeKey(typeLabel).replace(/[^a-z0-9]/g, '').slice(0, 22);
+        if (base === 'import_') base = 'import_type';
+        let key = base, suffix = 2;
+        while (used.has(key)) key = base + suffix++;
+        used.add(key);
+        type = { key, label: typeLabel, short: typeLabel.slice(0, 12), color: color || '#8e8e93', hint: '' };
+        types.push(type);
+      } else if (color && type.color !== color) {
+        // Les types d'origine personnalisés (couleurs comprises) n'étaient pas conservés dans les anciens exports.
+        // Leur couleur est donc rétablie lorsque le libellé permet une correspondance unique.
+        type.color = color;
+      }
+      record.pruningType = type.key;
+      restored++;
+    }
+    record.pruningDate = normalizeDate(get('date de taille'));
+    record.pruningShootSmall = numberOrBlank(get('petits rameaux laissés'));
+    record.pruningShootMedium = numberOrBlank(get('rameaux moyens laissés'));
+    record.pruningShootLarge = numberOrBlank(get('gros rameaux laissés'));
+    record.preWorkPruning = normalizeKey(get('pré-taille réalisée')) === 'oui';
+    record.pruningFinished = normalizeKey(get('statut taille')) === 'taillerealisee';
+    record.pruningComment = clean(get('commentaire taille'));
+  });
+  state.pruningTypes = types;
+  records.forEach(recalculateRecord);
+  return restored;
+}
+
 /** Normalise un classeur importé en liste d'enregistrements métier. */
 function normalizeImportedWorkbook(workbook) {
   const references = buildReferenceIndex(workbook);
   const records = [];
   workbook.SheetNames.forEach(sheetName => {
     const sheet = workbook.Sheets[sheetName];
-    if (!sheet) return;
+    if (!sheet || NON_PLANTING_SHEETS.includes(sheetName)) return;
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
     if (!rows.length) return;
     const headerIndex = detectHeaderRow(rows);
@@ -1762,10 +1933,48 @@ function normalizeImportedWorkbook(workbook) {
       if (!row || row.every(cell => isBlankOrExcelError(cell))) continue;
       const record = rowToRecord(row, header, fieldMap, sheetName, references);
       if (!record.variety && !record.se && !record.maturityDate && !record.row) continue;
+      restoreLegacyThinningFields(record, row, header);
       records.push(record);
     }
   });
   return records.map(recalculateRecord);
+}
+
+/** Restaurer les observations d'éclaircissage lorsqu'il s'agit de notre ancien export Excel.
+ *  Les plans de plantation classiques ne possèdent pas ces colonnes et ne sont pas modifiés.
+ */
+function restoreLegacyThinningFields(record, row, header) {
+  if (!header.includes(normalizeColumnName('fruits avant rameau petit'))) return;
+  const get = name => {
+    const idx = header.indexOf(normalizeColumnName(name));
+    return idx < 0 ? '' : row[idx];
+  };
+  const yes = value => normalizeKey(value) === 'oui';
+  record.preWorkThinning = yes(get('pré-éclaircissage réalisé'));
+  record.observationDate = normalizeDate(get('date d’observation'));
+  record.completionDate = normalizeDate(get('date de réalisation'));
+  record.stoneHardeningDate = normalizeDate(get('date de durcissement du noyau'));
+  record.historicalRate = parseRate(get('taux historique'));
+  record.historicalClass = cleanCell(get('classe historique'));
+  record.comment = cleanCell(get('commentaire éclaircissage'));
+  const fields = {
+    small: ['petit', 'petits'],
+    medium: ['moyen', 'moyens'],
+    large: ['gros', 'gros']
+  };
+  Object.entries(fields).forEach(([size, suffix]) => {
+    const before = numberOrBlank(get(`fruits avant rameau ${suffix[0]}`));
+    const remaining = numberOrBlank(get(`fruits restants rameau ${suffix[0]}`));
+    record.branches[size] = { before, remaining, removed: '', rate: '' };
+  });
+  record.shootSmall = numberOrBlank(get('petits rameaux/arbre'));
+  record.shootMedium = numberOrBlank(get('rameaux moyens/arbre'));
+  record.shootLarge = numberOrBlank(get('gros rameaux/arbre'));
+  const done = normalizeKey(get('statut')) === 'eclaircissagerealise';
+  record.finished = done;
+  record.thinningFinished = done;
+  if (done) record.status = 'éclaircissage réalisé';
+  record.lastModified = cleanCell(get('dernière modification')) || record.lastModified;
 }
 
 /** Détecte automatiquement la ligne d'en-tête à partir de mots-clés attendus. */
@@ -2278,6 +2487,7 @@ function renderHome() {
             <button class="menu-action orange" onclick="document.getElementById('fileImport').click()">📥 Importer</button>
             <button class="menu-action blue" onclick="exportToExcel()" ${state.records.length ? '' : 'disabled'}>📦 Export Excel</button>
           </div>
+          <p class="menu-meta-line">L’export Excel contient désormais une sauvegarde complète (consignes, couleurs, relevés et historique). Les anciens exports Excel sont également acceptés.</p>
           <p class="menu-meta-line">📦 Dernier export : ${fmtDateTime(state.lastExportAt) || 'jamais'}</p>
         </div>
 
@@ -2907,6 +3117,7 @@ function exportToExcel() {
   if (pruningRows.length) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pruningRows), 'Taille');
   }
+  appendFullBackupSheet(wb);
   const stamp = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `Suivi_eclaircissage_PN_${stamp}.xlsx`);
   state.lastExportAt = new Date().toISOString();
@@ -3377,16 +3588,30 @@ async function handleFileImport(event) {
   try {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: true });
+    const backup = readFullBackupSheet(workbook);
+    if (backup) {
+      const replace = state.records.length
+        ? confirm('Sauvegarde complète détectée. OK = remplacer les données de cet appareil. Annuler = fusionner (les valeurs importées ont priorité).')
+        : true;
+      applyFullTransferSnapshot(backup, replace);
+      await saveLocalData(false);
+      showToast(`Sauvegarde restaurée : ${backup.records.length} plantation(s), consignes comprises`);
+      if (state.activeSection === 'pruning') renderPruningList(); else renderList();
+      return;
+    }
     const imported = normalizeImportedWorkbook(workbook);
     if (!imported.length) return showToast('Aucune ligne exploitable détectée');
-    const keep = state.records.length ? confirm('Remplacer les données actuelles par ce fichier importé ? Annuler = fusionner.') : true;
+    const countPruning = restoreLegacyPruningSheet(workbook, imported);
+    const replace = state.records.length
+      ? confirm('Ancien Excel détecté. OK = remplacer les plantations par ce fichier. Annuler = fusionner ; les consignes importées ont priorité.')
+      : true;
     updateMaturityHistoryFromImported(imported);
-    if (keep) { state.records = imported; state.varieties = []; }
-    else state.records = mergeRecords(state.records, imported);
+    if (replace) { state.records = imported; state.varieties = []; }
+    else state.records = mergeTransferredRecords(state.records, imported, true).map(recalculateRecord);
     ensureVarietyLinks();
     await saveLocalData(false);
-    showToast(`${imported.length} ligne(s) importée(s)`);
-    renderList();
+    showToast(`${imported.length} implantation(s) importée(s) · ${countPruning} consigne(s) de taille récupérée(s)`);
+    if (state.activeSection === 'pruning') renderPruningList(); else renderList();
   } catch (err) {
     console.error(err);
     showToast('Erreur pendant l’import');
