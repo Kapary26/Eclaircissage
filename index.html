@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Suivi éclaircissage & taille P&N v24</title>
+  <title>Suivi éclaircissage & taille P&N v25</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
   <style>
@@ -5983,12 +5983,13 @@ function isPrunedRecord(record) {
   return !!(record && record.pruningFinished);
 }
 function canFinishPruning(record) {
-  return !!(record && record.pruningType && record.pruningDate && hasCompletePruningCounts(record));
+  // Les comptages de rameaux sont facultatifs pour terminer la taille.
+  // Ils demeurent nécessaires uniquement pour estimer la charge en éclaircissage.
+  return !!(record && record.pruningType && record.pruningDate);
 }
 function getPruningValidationMessage(record) {
   if (!record.pruningType) return 'Choisir le type de taille (consigne piquet)';
   if (!record.pruningDate) return 'Renseigner la date de taille';
-  if (!hasCompletePruningCounts(record)) return 'Compter les rameaux restants après taille';
   return '';
 }
 /** Reporte le comptage de taille dans la structure de l'arbre utilisée pour l'éclaircissage. */
@@ -6379,7 +6380,7 @@ function renderPruningForm(id) {
           <div class="prune-total-label">Total / arbre</div>
           <div class="prune-total-value">${counts ? counts.total : '—'}</div>
         </div>
-        <p class="prune-note">Comptage réalisé sur un arbre témoin. C’est cette donnée qui sert à estimer le nombre de fruits par arbre lors de l’éclaircissage.</p>
+        <p class="prune-note">Comptage facultatif pour terminer la taille. Il peut être complété plus tard et sert à estimer le nombre de fruits par arbre lors de l’éclaircissage.</p>
       </section>
 
       <section class="card">
@@ -6423,7 +6424,8 @@ function finishPruning(id) {
   record.pruningFinished = true;
   record.lastModified = new Date().toISOString();
   recalculateRecord(record);
-  applyPruningCountsToStructure(record.id, true);
+  // Ne reporte rien lorsque le comptage est absent : les champs restent vides.
+  if (hasCompletePruningCounts(record)) applyPruningCountsToStructure(record.id, true);
   saveLocalData(false);
   showToast('Taille terminée');
   renderPruningList();
