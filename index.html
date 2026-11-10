@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Suivi éclaircissage & taille P&N v25</title>
+  <title>Suivi éclaircissage & taille P&N v26</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
   <style>
@@ -1337,6 +1337,22 @@
   margin-bottom: 14px;
 }
 
+
+    /* v26 : recherche sans perte du clavier, et effacement immédiat. */
+    .search-entry { position: relative; min-width: 0; flex: 1 1 auto; }
+    .search-entry > input { width: 100%; padding-right: 49px !important; }
+    .search-entry > input::-webkit-search-cancel-button,
+    .search-entry > input::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+    .search-clear {
+      position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+      width: 30px; height: 30px; min-width: 30px; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; border: 0; background: rgba(142,142,147,.18);
+      color: var(--text-2); font-size: 22px; font-weight: 700;
+      line-height: 1; z-index: 2;
+    }
+    .search-clear:active { background: rgba(142,142,147,.3); }
+
 </style>
   <style id="pruning-style">
     /* ===== v24 - Module Taille (consignes piquets + comptage rameaux) ===== */
@@ -2616,9 +2632,85 @@ window.openParcelsManagementFromMenu = openParcelsManagementFromMenu;
 window.openTreesManagementFromMenu = openTreesManagementFromMenu;
 window.openHistoryFromMenu = openHistoryFromMenu;
 
+/** La recherche reste physiquement dans le DOM pendant la frappe : le clavier iOS ne se ferme pas. */
+function searchFieldHtml(id, value, placeholder) {
+  const filled = String(value || '').length > 0;
+  return `<div class="search-entry">
+    <input id="${escapeAttr(id)}" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="${escapeAttr(placeholder)}" value="${escapeAttr(value || '')}" />
+    <button type="button" class="search-clear ${filled ? '' : 'hidden'}" onclick="clearSearchInput('${id}')" aria-label="Effacer la recherche" title="Effacer la recherche">×</button>
+  </div>`;
+}
+function syncSearchClearButton(input) {
+  const button = input?.closest('.search-entry')?.querySelector('.search-clear');
+  if (button) button.classList.toggle('hidden', !input.value);
+}
+function clearSearchInput(id) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.value = '';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.focus({ preventScroll: true });
+}
+/** Ne conserve l'emplacement qu'au moment d'ouvrir une fiche depuis sa liste. */
+const terrainListScroll = { thinning: 0, pruning: 0 };
+function centerVarietyOnReturn(section, recordId) {
+  if (!recordId) return;
+  // Deux frames permettent au navigateur d'intégrer la nouvelle liste avant le positionnement.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const container = document.getElementById(section === 'pruning' ? 'pruningResults' : 'thinningResults');
+    if (!container) return;
+    const target = [...container.children].find(el => el.dataset.recordId === String(recordId));
+    if (target) {
+      target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    } else {
+      // Une variété terminée peut disparaître du filtre « À faire » : garder le même secteur.
+      window.scrollTo({ top: terrainListScroll[section] || 0, left: 0, behavior: 'instant' });
+    }
+  }));
+}
+/** Rafraîchit les seuls résultats, pas le champ qui possède le focus ni l'en-tête. */
+function updateThinningSearchResults() {
+  const records = getFilteredRecords();
+  const results = document.getElementById('thinningResults');
+  if (results) results.innerHTML = records.length ? records.map(renderRecordCard).join('') : '<div class="empty">Aucune variété ne correspond aux filtres.</div>';
+  const count = document.querySelector('.section-toggle-sub');
+  if (count) count.textContent = `${records.length} affichée(s) sur ${state.records.length}`;
+}
+function updatePruningSearchResults() {
+  const records = getFilteredPruningRecords();
+  const results = document.getElementById('pruningResults');
+  if (results) results.innerHTML = records.length ? pruningListBody(records) : '<div class="empty">Aucune variété ne correspond aux filtres.</div>';
+  const count = document.querySelector('.section-toggle-sub');
+  if (count) count.textContent = `${records.length} affichée(s) sur ${state.records.length}`;
+  const bulkButton = document.querySelector('.prune-bulk-entry');
+  if (bulkButton) bulkButton.disabled = !records.length;
+}
+function updateTreesSearchResults() {
+  const all = getVarietyCatalogue();
+  const q = normalizeKey(state.treesManagerSearch || '');
+  const varieties = q ? all.filter(v => normalizeKey(buildVarietySearchText(v)).includes(q)) : all;
+  const list = document.getElementById('treesSearchResults');
+  if (list) list.innerHTML = varieties.length ? varieties.map(varietyCard).join('') : '<div class="empty">Aucune variété ne correspond à la recherche.</div>';
+  const count = document.getElementById('treesSearchCount');
+  if (count) count.textContent = `${varieties.length} variété(s) affichée(s) sur ${all.length} · ${state.records.length} plantation(s) au total.`;
+}
+function updateHistorySearchResults() {
+  const q = normalizeKey(state.historySearch || '');
+  let rows = [...(state.history || [])];
+  if (state.historyYearFilter) rows = rows.filter(h => String(h.year) === String(state.historyYearFilter));
+  if (q) rows = rows.filter(h => normalizeKey([h.variety, h.denomination, h.se, h.parcel, h.row, h.treeStart, h.treeEnd, h.year, h.class, h.rate, h.maturityDate].join(' ')).includes(q));
+  rows.sort((a,b) => Number(b.year || 0) - Number(a.year || 0) || String(a.variety || '').localeCompare(String(b.variety || ''), 'fr', { numeric:true, sensitivity:'base' }));
+  const summaries = getHistorySummaries(rows);
+  const list = document.getElementById('historySearchResults');
+  if (list) list.innerHTML = summaries.length ? summaries.map(historySummaryRow).join('') : '<div class="empty">Aucun historique enregistré.</div>';
+  const count = document.getElementById('historySearchCount');
+  if (count) count.textContent = `${summaries.length} variété(s) affichée(s) · ${rows.length} donnée(s) historique(s).`;
+}
+
 /** Affiche la liste mobile des variétés avec recherche, filtres et progression. */
 function renderList() {
   lockViewportMobile();
+  const returnFromForm = state.currentView === 'form';
   state.currentView = 'list';
   const stats = getStats();
   const records = getFilteredRecords();
@@ -2627,29 +2719,23 @@ function renderList() {
     '<button class="list-action-btn stats" onclick="renderStats()"><span class="icon">📊</span><span>Stats</span></button>') + `
     <main class="content">
       <div class="searchbar">
-        <input id="searchInput" type="search" placeholder="Variété, SE, parcelle, rang…" value="${escapeAttr(state.search)}" />
+        ${searchFieldHtml('searchInput', state.search, 'Variété, SE, parcelle, rang…')}
         ${filterButton()}
       </div>
       ${progressBlock(stats.progress, stats.done, stats.total)}
       <div class="chips" id="filterChips">${filterNames().map(f => `<button class="chip ${state.currentFilter === f ? 'active' : ''}" data-filter="${escapeAttr(f)}">${f}</button>`).join('')}</div>
-      <div class="compact-list">
+      <div class="compact-list" id="thinningResults">
         ${records.length ? records.map(renderRecordCard).join('') : '<div class="empty">Aucune variété ne correspond aux filtres.</div>'}
       </div>
     </main>`;
 
   document.getElementById('searchInput').addEventListener('input', e => {
     state.search = e.target.value;
-    renderList();
-    requestAnimationFrame(() => {
-      const input = document.getElementById('searchInput');
-      if (input) {
-        input.focus({ preventScroll: true });
-        const pos = input.value.length;
-        try { input.setSelectionRange(pos, pos); } catch (_) {}
-      }
-    });
+    syncSearchClearButton(e.target);
+    updateThinningSearchResults();
   });
   document.querySelectorAll('[data-filter]').forEach(btn => btn.addEventListener('click', e => { state.currentFilter = e.currentTarget.dataset.filter; renderList(); }));
+  if (returnFromForm) centerVarietyOnReturn('thinning', state.selectedId);
 }
 
 
@@ -2784,6 +2870,7 @@ function updateFormSectionStatuses(record) {
 function renderForm(id) {
   const record = state.records.find(r => r.id === id) || state.records.find(r => r.id === state.selectedId);
   if (!record) return renderList();
+  if (state.currentView === 'list') terrainListScroll.thinning = window.scrollY || window.pageYOffset || 0;
   recalculateRecord(record);
   state.selectedId = record.id;
   state.currentView = 'form';
@@ -3264,22 +3351,19 @@ function renderHistory() {
       </details>
 
       <section class="card manager-search-card">
-        <div class="searchbar"><input id="historySearchInput" type="search" placeholder="🔍 Rechercher variété, parcelle, année…" value="${escapeAttr(state.historySearch || '')}" /></div>
+        <div class="searchbar">${searchFieldHtml('historySearchInput', state.historySearch, '🔍 Rechercher variété, parcelle, année…')}</div>
         <div class="field" style="margin-top:10px"><label>Filtrer par année</label><select id="historyYearFilter"><option value="">Toutes les années</option>${years.map(y => `<option value="${escapeAttr(y)}" ${String(state.historyYearFilter)===String(y)?'selected':''}>${escapeHtml(y)}</option>`).join('')}</select></div>
-        <p class="manager-empty-hint">${summaries.length} variété(s) affichée(s) · ${rows.length} donnée(s) historique(s).</p>
+        <p class="manager-empty-hint" id="historySearchCount">${summaries.length} variété(s) affichée(s) · ${rows.length} donnée(s) historique(s).</p>
       </section>
       <section class="card">
         <h2 class="section-title">Résumé par variété</h2>
-        <div class="parcel-added-list">${summaries.length ? summaries.map(historySummaryRow).join('') : '<div class="empty">Aucun historique enregistré.</div>'}</div>
+        <div class="parcel-added-list" id="historySearchResults">${summaries.length ? summaries.map(historySummaryRow).join('') : '<div class="empty">Aucun historique enregistré.</div>'}</div>
       </section>
     </main>`;
   document.getElementById('historySearchInput')?.addEventListener('input', e => {
     state.historySearch = e.target.value;
-    renderHistory();
-    requestAnimationFrame(() => {
-      const input = document.getElementById('historySearchInput');
-      if (input) { input.focus(); const len = input.value.length; input.setSelectionRange?.(len, len); }
-    });
+    syncSearchClearButton(e.target);
+    updateHistorySearchResults();
   });
   document.getElementById('historyYearFilter')?.addEventListener('change', e => { state.historyYearFilter = e.target.value; renderHistory(); });
   if (editEntry) {
@@ -3848,7 +3932,7 @@ function renderRecordCard(r) {
   const pos = formatTreePosition(r);
   const done = isDoneRecord(r);
   const denom = r.denomination && normalizeKey(r.denomination) !== normalizeKey(r.variety) ? `<div class="compact-denomination">${escapeHtml(r.denomination)}</div>` : '';
-  return `<article class="compact-var-row ${done ? 'done' : ''}" onclick="renderForm('${r.id}')">
+  return `<article class="compact-var-row ${done ? 'done' : ''}" data-record-id="${escapeAttr(r.id)}" onclick="renderForm('${r.id}')">
     <div class="se-block ${seColorClass(r.se)}">${escapeHtml(r.se || '—')}</div>
     <div class="compact-main"><div class="compact-main-name">${escapeHtml(r.variety || 'Sans variété')}${preWorkBadge(r, 'thinning')}${done ? '<span class="compact-check">✓</span>' : ''}</div>${denom}</div>
     <div class="compact-position">${escapeHtml(pos)}</div>
@@ -3946,8 +4030,9 @@ function goBackToSection() {
 function goBack() {
   document.activeElement?.blur?.();
   lockViewportMobile();
+  const returningFromVariety = state.currentView === 'form' || state.currentView === 'pruningForm';
   goBackToSection();
-  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  if (!returningFromVariety) requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
 }
 
 function progressBlock(progress, done, total) {
@@ -4988,14 +5073,14 @@ function renderTreesManagement() {
 
       <section class="card manager-search-card">
         <div class="searchbar">
-          <input id="treesManagerSearchInput" type="search" placeholder="🔍 Rechercher SE, variété, dénomination, parcelle, R10, A204…" value="${escapeAttr(search)}" />
+          ${searchFieldHtml('treesManagerSearchInput', search, '🔍 Rechercher SE, variété, dénomination, parcelle, R10, A204…')}
         </div>
-        <p class="manager-empty-hint">${varieties.length} variété(s) affichée(s) sur ${all.length} · ${totalPlantings} plantation(s) au total.</p>
+        <p class="manager-empty-hint" id="treesSearchCount">${varieties.length} variété(s) affichée(s) sur ${all.length} · ${totalPlantings} plantation(s) au total.</p>
       </section>
 
       <section class="card">
         <h2 class="section-title">Variétés</h2>
-        <div class="variety-list">
+        <div class="variety-list" id="treesSearchResults">
           ${varieties.length ? varieties.map(varietyCard).join('') : '<div class="empty">Aucune variété ne correspond à la recherche.</div>'}
         </div>
       </section>
@@ -5003,15 +5088,8 @@ function renderTreesManagement() {
 
   document.getElementById('treesManagerSearchInput')?.addEventListener('input', e => {
     state.treesManagerSearch = e.target.value;
-    renderTreesManagement();
-    requestAnimationFrame(() => {
-      const input = document.getElementById('treesManagerSearchInput');
-      if (input) {
-        input.focus();
-        const len = input.value.length;
-        input.setSelectionRange?.(len, len);
-      }
-    });
+    syncSearchClearButton(e.target);
+    updateTreesSearchResults();
   });
 }
 
@@ -6054,6 +6132,7 @@ function getFilteredPruningRecords() {
 
 function renderPruningList() {
   lockViewportMobile();
+  const returnFromForm = state.currentView === 'pruningForm';
   state.currentView = 'pruning';
   const stats = getPruningStats();
   const records = getFilteredPruningRecords();
@@ -6063,30 +6142,23 @@ function renderPruningList() {
     '<button class="list-action-btn stats" onclick="renderPruningInstructions()"><span class="icon">🪧</span><span>Piquets</span></button>') + `
     <main class="content">
       <div class="searchbar">
-        <input id="pruningSearchInput" type="search" placeholder="Variété, SE, parcelle, rang…" value="${escapeAttr(state.pruningSearch || '')}" />
+        ${searchFieldHtml('pruningSearchInput', state.pruningSearch, 'Variété, SE, parcelle, rang…')}
         ${filterButton()}
       </div>
       ${progressBlock(stats.progress, stats.done, stats.total)}
       <div class="chips" style="margin-top:12px">${PRUNING_FILTERS.map(f => `<button class="chip ${state.pruningFilter === f ? 'active' : ''}" onclick="setPruningFilter('${f}')">${f}</button>`).join('')}</div>
       <button type="button" class="btn secondary prune-bulk-entry" onclick="openBulkPruningSelector()" ${records.length ? '' : 'disabled'}><span class="bulk-symbol">☑</span><span>Attribuer une consigne groupée</span></button>
-      <div class="prune-list">
+      <div class="prune-list" id="pruningResults">
         ${records.length ? pruningListBody(records) : '<div class="empty">Aucune variété ne correspond aux filtres.</div>'}
       </div>
     </main>`;
 
   document.getElementById('pruningSearchInput')?.addEventListener('input', e => {
     state.pruningSearch = e.target.value;
-    renderPruningList();
-    requestAnimationFrame(() => {
-      const input = document.getElementById('pruningSearchInput');
-      if (input) {
-        input.focus({ preventScroll: true });
-        const pos = input.value.length;
-        try { input.setSelectionRange(pos, pos); } catch (_) {}
-      }
-    });
+    syncSearchClearButton(e.target);
+    updatePruningSearchResults();
   });
-
+  if (returnFromForm) centerVarietyOnReturn('pruning', state.selectedId);
 }
 
 function setPruningFilter(filter) {
@@ -6117,7 +6189,7 @@ function pruningRecordCard(r) {
   const chipStyle = info
     ? `background:${hex};color:${contrastText(hex)};border-color:${hex}`
     : 'background:transparent;color:var(--text-2)';
-  return `<article class="prune-row ${done ? 'done' : ''}" onclick="renderPruningForm('${r.id}')">
+  return `<article class="prune-row ${done ? 'done' : ''}" data-record-id="${escapeAttr(r.id)}" onclick="renderPruningForm('${r.id}')">
     <span class="prune-stripe" style="background:${hex}"></span>
     <div class="prune-main">
       <div class="prune-name">${escapeHtml(r.variety || 'Sans variété')}${preWorkBadge(r, 'pruning')}${done ? '<span class="prune-check">✓</span>' : ''}</div>
@@ -6328,6 +6400,7 @@ async function choosePruningType(id, typeKey) {
 function renderPruningForm(id) {
   const record = state.records.find(r => r.id === id);
   if (!record) return renderPruningList();
+  if (state.currentView === 'pruning') terrainListScroll.pruning = window.scrollY || window.pageYOffset || 0;
   recalculateRecord(record);
   state.selectedId = record.id;
   state.currentView = 'pruningForm';
